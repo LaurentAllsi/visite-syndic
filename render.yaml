@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: visite-syndic
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_PASSWORD
+        value: laforet2024
+    databases:
+      - name: visite-syndic-db
+        databaseName: visite_syndic
+        user: visite
+        plan: free
