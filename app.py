@@ -648,20 +648,20 @@ def copropriete_delete(cid):
 @app.route('/coproprietes/import-facturation', methods=['POST'])
 @login_required
 def import_from_facturation():
-    """Importe les copropriétés depuis la base facturation."""
+    """Import depuis base SQLite facturation (uniquement en local)."""
     fact_path = os.path.abspath(FACT_DB)
     if not os.path.exists(fact_path):
-        flash('Base facturation introuvable. Vérifiez le chemin.', 'danger')
-        return redirect(url_for('coproprietes_list'))
+        flash('Import direct non disponible sur ce serveur. Utilisez l\'import Excel.', 'warning')
+        return redirect(url_for('coproprietes_importer'))
     try:
         fdb = sqlite3.connect(fact_path)
         fdb.row_factory = sqlite3.Row
         rows = fdb.execute('SELECT nom, adresse, nb_lots FROM coproprietes WHERE actif=1').fetchall()
         fdb.close()
+        existing = {r['nom'].lower() for r in qdb('SELECT nom FROM coproprietes')}
         imported = 0
         for r in rows:
-            existing = qdb('SELECT id FROM coproprietes WHERE nom=?', (r['nom'],), one=True)
-            if not existing:
+            if r['nom'].lower() not in existing:
                 edb('INSERT INTO coproprietes (nom, adresse, nb_lots) VALUES (?,?,?)',
                     (r['nom'], r['adresse'] or '', r['nb_lots'] or 0))
                 imported += 1
@@ -669,6 +669,89 @@ def import_from_facturation():
     except Exception as e:
         flash(f'Erreur import : {e}', 'danger')
     return redirect(url_for('coproprietes_list'))
+
+@app.route('/coproprietes/importer', methods=['GET', 'POST'])
+@login_required
+def coproprietes_importer():
+    """Import Excel / CSV / saisie rapide avec prévisualisation."""
+    import csv as _csv
+    preview = []
+    texte   = ''
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        # ── Saisie texte libre ────────────────────────────────────────────────
+        if action == 'preview_text':
+            texte = request.form.get('texte', '')
+            for line in texte.splitlines():
+                nom = line.strip()
+                if nom:
+                    preview.append({'nom': nom, 'adresse': '', 'nb_lots': 0})
+            return render_template('coproprietes_import.html', preview=preview, texte=texte)
+
+        # ── Fichier Excel ou CSV ──────────────────────────────────────────────
+        elif action == 'preview_file':
+            f = request.files.get('fichier')
+            if not f or not f.filename:
+                flash('Aucun fichier sélectionné.', 'danger')
+                return redirect(url_for('coproprietes_importer'))
+            fname = f.filename.lower()
+            try:
+                if fname.endswith('.xlsx'):
+                    from openpyxl import load_workbook
+                    wb = load_workbook(f, read_only=True, data_only=True)
+                    ws = wb.active
+                    for row in ws.iter_rows(min_row=2, values_only=True):
+                        nom = str(row[0]).strip() if row[0] else ''
+                        if nom and nom.lower() != 'none':
+                            adresse = str(row[1]).strip() if len(row) > 1 and row[1] else ''
+                            try:
+                                lots = int(row[2]) if len(row) > 2 and row[2] else 0
+                            except (ValueError, TypeError):
+                                lots = 0
+                            preview.append({'nom': nom, 'adresse': adresse, 'nb_lots': lots})
+                elif fname.endswith('.csv'):
+                    content = f.read().decode('utf-8-sig', errors='replace')
+                    reader  = _csv.reader(content.splitlines())
+                    next(reader, None)
+                    for row in reader:
+                        if row and row[0].strip():
+                            preview.append({
+                                'nom':     row[0].strip(),
+                                'adresse': row[1].strip() if len(row) > 1 else '',
+                                'nb_lots': int(row[2]) if len(row) > 2 and row[2].strip().isdigit() else 0,
+                            })
+                else:
+                    flash('Format non supporté. Utilisez .xlsx ou .csv', 'danger')
+                    return redirect(url_for('coproprietes_importer'))
+            except Exception as e:
+                flash(f'Erreur lecture fichier : {e}', 'danger')
+                return redirect(url_for('coproprietes_importer'))
+            if not preview:
+                flash('Aucune ligne trouvée dans le fichier (vérifiez que la ligne 1 est un en-tête).', 'warning')
+                return redirect(url_for('coproprietes_importer'))
+            return render_template('coproprietes_import.html', preview=preview, texte='')
+
+        # ── Confirmation import ───────────────────────────────────────────────
+        elif action == 'confirmer':
+            noms    = request.form.getlist('nom')
+            adrs    = request.form.getlist('adresse')
+            lots_l  = request.form.getlist('nb_lots')
+            existing = {r['nom'].lower() for r in qdb('SELECT nom FROM coproprietes')}
+            created = skipped = 0
+            for nom, adr, lots in zip(noms, adrs, lots_l):
+                nom = nom.strip()
+                if not nom or nom.lower() in existing:
+                    skipped += 1
+                    continue
+                edb('INSERT INTO coproprietes (nom, adresse, nb_lots) VALUES (?,?,?)',
+                    (nom, adr.strip(), int(lots or 0)))
+                created += 1
+            flash(f'{created} copropriété(s) importée(s). {skipped} ignorée(s) (doublon ou vide).', 'success')
+            return redirect(url_for('coproprietes_list'))
+
+    return render_template('coproprietes_import.html', preview=[], texte='')
 
 # ── Filtres Jinja ─────────────────────────────────────────────────────────────
 @app.template_filter('fmt_date')

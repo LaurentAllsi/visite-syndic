@@ -3,12 +3,9 @@
 {% block page_title %}Copropriétés{% endblock %}
 
 {% block topbar_actions %}
-<form method="post" action="{{ url_for('import_from_facturation') }}" class="d-inline">
-  <button type="submit" class="btn btn-outline-secondary btn-sm"
-          onclick="return confirm('Importer les copropriétés actives depuis la base facturation ?')">
-    <i class="bi bi-download me-1"></i>Importer facturation
-  </button>
-</form>
+<a href="{{ url_for('coproprietes_importer') }}" class="btn btn-lf-cyan btn-sm">
+  <i class="bi bi-file-earmark-spreadsheet me-1"></i>Importer Excel
+</a>
 <a href="{{ url_for('copropriete_new') }}" class="btn btn-lf btn-sm">
   <i class="bi bi-plus-lg"></i> Ajouter
 </a>
