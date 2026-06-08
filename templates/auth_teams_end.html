@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Connexion…</title>
+<script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+</head>
+<body>
+<script>
+microsoftTeams.app.initialize().then(function() {
+  microsoftTeams.authentication.notifySuccess("{{ token }}");
+}).catch(function() {
+  // Fallback si hors Teams : rediriger via le token
+  window.location.href = "/auth/teams-token?token={{ token }}";
+});
+</script>
+</body>
+</html>

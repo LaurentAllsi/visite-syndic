@@ -1,0 +1,4 @@
+flask>=3.0
+gunicorn>=21.2
+weasyprint>=62.0
+xhtml2pdf>=0.2.16

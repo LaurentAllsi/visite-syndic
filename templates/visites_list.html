@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Visites{% endblock %}
+{% block page_title %}Toutes les visites{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('visite_new') }}" class="btn btn-lf btn-sm">
+  <i class="bi bi-plus-lg"></i> Nouvelle visite
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filtres -->
+<form method="get" class="row g-2 mb-3">
+  <div class="col-12 col-md-6">
+    <input type="text" name="q" class="form-control" placeholder="Rechercher résidence, rédacteur…"
+           value="{{ q }}">
+  </div>
+  <div class="col-6 col-md-3">
+    <select name="statut" class="form-select">
+      <option value="">Tous statuts</option>
+      <option value="brouillon" {% if statut=='brouillon' %}selected{% endif %}>Brouillon</option>
+      <option value="finalisee" {% if statut=='finalisee' %}selected{% endif %}>Finalisée</option>
+    </select>
+  </div>
+  <div class="col-6 col-md-3 d-flex gap-2">
+    <button type="submit" class="btn btn-lf flex-grow-1">Filtrer</button>
+    {% if q or statut %}
+    <a href="{{ url_for('visites_list') }}" class="btn btn-outline-secondary">✕</a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Liste -->
+{% if visites %}
+<!-- Vue mobile (cartes) -->
+<div class="d-md-none">
+  {% for v in visites %}
+  <a href="{{ url_for('visite_detail', vid=v.id) }}" class="visite-card-mobile text-decoration-none">
+    <div class="d-flex justify-content-between align-items-start mb-1">
+      <span class="fw-bold text-dark">{{ v.copropriete_nom }}</span>
+      {% if v.statut == 'finalisee' %}
+        <span class="badge badge-finalisee">Finalisée</span>
+      {% else %}
+        <span class="badge badge-brouillon">Brouillon</span>
+      {% endif %}
+    </div>
+    <div class="text-muted small">
+      {{ v.date_visite | fmt_date }} · {{ v.redacteur }}
+      {% if urgences[v.id] %} · <span class="text-danger fw-semibold">🔴 {{ urgences[v.id] }} urgent{{ 's' if urgences[v.id] > 1 }}</span>{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Vue desktop (tableau) -->
+<div class="table-card d-none d-md-block">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Résidence</th>
+          <th>Date</th>
+          <th>Rédacteur</th>
+          <th>Personnes présentes</th>
+          <th>Statut</th>
+          <th>Obs.</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in visites %}
+        <tr>
+          <td class="fw-semibold">{{ v.copropriete_nom }}</td>
+          <td>{{ v.date_visite | fmt_date }}</td>
+          <td>{{ v.redacteur }}</td>
+          <td class="text-muted small">{{ v.personnes_presentes or '—' }}</td>
+          <td>
+            {% if v.statut == 'finalisee' %}
+              <span class="badge badge-finalisee">Finalisée</span>
+            {% else %}
+              <span class="badge badge-brouillon">Brouillon</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if urgences[v.id] %}
+              <span class="text-danger fw-semibold">🔴 {{ urgences[v.id] }}</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('visite_detail', vid=v.id) }}" class="btn btn-sm btn-outline-secondary me-1">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if v.statut == 'brouillon' %}
+            <a href="{{ url_for('visite_obs', vid=v.id) }}" class="btn btn-sm btn-lf-cyan">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-search fs-1 d-block mb-2"></i>
+  {% if q or statut %}Aucune visite ne correspond à ces critères.
+  {% else %}Aucune visite enregistrée.{% endif %}
+</div>
+{% endif %}
+{% endblock %}

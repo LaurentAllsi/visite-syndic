@@ -1,0 +1,247 @@
+:root {
+  --lf-blue:      #153D8A;
+  --lf-blue-dark: #0D2B6E;
+  --lf-cyan:      #009EE3;
+  --lf-cyan-dark: #007BBF;
+  --sidebar-bg:   #153D8A;
+  --sidebar-w:    240px;
+}
+
+/* ── Layout ─────────────────────────────────────────────────── */
+body { background: #f0f4f8; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+.sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-w); background: var(--sidebar-bg);
+  z-index: 1000; overflow-y: auto;
+  box-shadow: 2px 0 12px rgba(21,61,138,.35);
+  transition: transform .25s;
+}
+.main-content { margin-left: var(--sidebar-w); min-height: 100vh; }
+
+/* ── Sidebar brand ───────────────────────────────────────────── */
+.sidebar-brand {
+  padding: 1.25rem 1rem .75rem;
+  border-bottom: 1px solid rgba(255,255,255,.15);
+  background: var(--lf-blue-dark);
+}
+.brand-lf  { display:block; font-size:1.4rem; font-weight:800; color:#fff; letter-spacing:.03em; }
+.brand-sub { display:block; font-size:.7rem; color:rgba(255,255,255,.55); letter-spacing:.07em; text-transform:uppercase; margin-top:2px; }
+
+/* ── Sidebar nav ─────────────────────────────────────────────── */
+.sidebar .nav-link {
+  color: rgba(255,255,255,.78); padding: .55rem 1rem;
+  border-radius: 6px; margin: 1px 8px; font-size: .88rem;
+  display: flex; align-items: center; gap: .55rem;
+  transition: background .15s, color .15s;
+}
+.sidebar .nav-link:hover  { background: rgba(255,255,255,.12); color: #fff; }
+.sidebar .nav-link.active { background: var(--lf-cyan); color: #fff !important; box-shadow: 0 2px 8px rgba(0,158,227,.35); }
+.sidebar .nav-link i      { font-size: 1rem; width: 18px; text-align: center; }
+
+.sidebar-footer {
+  padding: .75rem 1rem;
+  border-top: 1px solid rgba(255,255,255,.12);
+}
+.sidebar-footer .text-muted { color: rgba(255,255,255,.45) !important; font-size: .78rem; }
+
+/* Toggle mobile */
+.sidebar-toggle {
+  position: fixed; top: 12px; left: 12px; z-index: 1100;
+  background: var(--lf-blue); color: #fff; border: none;
+  width: 40px; height: 40px; border-radius: 8px; font-size: 1.3rem;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.sidebar.open { transform: translateX(0) !important; }
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+.topbar {
+  background: #fff; border-bottom: 2px solid var(--lf-cyan);
+  min-height: 54px; box-shadow: 0 1px 6px rgba(21,61,138,.08);
+  position: sticky; top: 0; z-index: 900;
+}
+.topbar h5 { font-size: .95rem; color: var(--lf-blue); font-weight: 700; }
+
+/* ── Content ─────────────────────────────────────────────────── */
+.content-body { padding-top: 1.25rem; }
+
+/* ── Stat cards ──────────────────────────────────────────────── */
+.stat-card {
+  background: #fff; border-radius: 10px; padding: 1.1rem 1.2rem;
+  border: 1px solid #e0e8f4; box-shadow: 0 1px 6px rgba(21,61,138,.07);
+}
+.stat-card .stat-icon { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; }
+.stat-card .stat-value { font-size:1.45rem; font-weight:700; line-height:1.1; color:var(--lf-blue); word-break:break-word; }
+.stat-card .stat-label { font-size:.75rem; color:#6c757d; margin-top:2px; }
+.icon-blue   { background:#ddeaf8; color:var(--lf-blue); }
+.icon-cyan   { background:#d9f0fb; color:var(--lf-cyan); }
+.icon-green  { background:#e6f9ee; color:#16a34a; }
+.icon-orange { background:#fff3e0; color:#d97706; }
+
+/* ── Table card ──────────────────────────────────────────────── */
+.table-card {
+  background: #fff; border-radius: 10px; overflow: hidden;
+  border: 1px solid #e0e8f4; box-shadow: 0 1px 6px rgba(21,61,138,.07);
+}
+.table thead th {
+  background: #f0f5fb; font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--lf-blue); font-weight: 600;
+  border-bottom: 2px solid #d0ddf0; white-space: nowrap;
+}
+.table tbody tr:hover { background: #f5f9ff; }
+.table td, .table th  { vertical-align: middle; }
+
+/* ── Badges statut ───────────────────────────────────────────── */
+.badge-finalisee { background: #d1e7dd; color: #0a3622; font-weight: 500; }
+.badge-brouillon { background: #fff3cd; color: #856404; font-weight: 500; }
+
+/* ── Boutons ─────────────────────────────────────────────────── */
+.btn-lf      { background:var(--lf-blue); color:#fff; border:none; transition:background .15s, box-shadow .15s; }
+.btn-lf:hover{ background:var(--lf-blue-dark); color:#fff; box-shadow:0 3px 10px rgba(21,61,138,.3); }
+.btn-lf-cyan      { background:var(--lf-cyan); color:#fff; border:none; transition:background .15s; }
+.btn-lf-cyan:hover{ background:var(--lf-cyan-dark); color:#fff; }
+.text-lf { color: var(--lf-blue); }
+
+/* ── Forms ───────────────────────────────────────────────────── */
+.form-card {
+  background: #fff; border-radius: 10px; padding: 1.75rem;
+  border: 1px solid #e0e8f4; box-shadow: 0 1px 6px rgba(21,61,138,.07);
+  max-width: 680px;
+}
+.form-label { font-size: .85rem; font-weight: 500; color: #374151; }
+.form-control:focus, .form-select:focus {
+  border-color: var(--lf-cyan); box-shadow: 0 0 0 .2rem rgba(0,158,227,.18);
+}
+
+/* ── Login ───────────────────────────────────────────────────── */
+.login-bg  { background: linear-gradient(135deg, var(--lf-blue) 0%, var(--lf-cyan) 100%); }
+.login-card {
+  max-width: 400px; width: 100%;
+  background: #fff; border-radius: 16px; padding: 2.5rem 2rem;
+  box-shadow: 0 8px 40px rgba(21,61,138,.25);
+}
+.login-logo { font-size: 2rem; font-weight: 800; color: var(--lf-blue); text-align: center; margin-bottom: .1rem; }
+.login-logo span { color: var(--lf-cyan); }
+.login-sub  { text-align: center; color: #64748b; font-size: .82rem; margin-bottom: 1.75rem; }
+
+/* ── Visite info bar ─────────────────────────────────────────── */
+.visite-info-bar {
+  background: #fff; border: 1px solid #e0e8f4; border-radius: 10px;
+  padding: .75rem 1rem; box-shadow: 0 1px 4px rgba(21,61,138,.06);
+}
+.info-chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .82rem; color: #374151; background: #f5f9ff;
+  border: 1px solid #d0ddf0; border-radius: 20px; padding: .3rem .75rem;
+}
+.info-chip i { color: var(--lf-blue); }
+
+/* ── Badges urgence ──────────────────────────────────────────── */
+.badge-urgence {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .78rem; font-weight: 600; padding: .3rem .8rem;
+  border-radius: 20px; border: 1.5px solid;
+}
+.badge-urgence-urgent    { background:#fee2e2; color:#b91c1c; border-color:#b91c1c; }
+.badge-urgence-planifier { background:#ffedd5; color:#c2410c; border-color:#c2410c; }
+.badge-urgence-info      { background:#dcfce7; color:#15803d; border-color:#15803d; }
+
+/* ── Obs cards ───────────────────────────────────────────────── */
+.obs-card {
+  background: #fff; border-radius: 12px; padding: 1rem;
+  border: 1.5px solid #e0e8f4; box-shadow: 0 1px 4px rgba(21,61,138,.06);
+  border-left-width: 4px;
+}
+.obs-card-urgent    { border-left-color: #b91c1c; }
+.obs-card-planifier { border-left-color: #c2410c; }
+.obs-card-info      { border-left-color: #15803d; }
+
+.btn-add-obs {
+  border: 2px dashed #d0ddf0; border-radius: 12px; color: #6b7280;
+  background: #fff; font-size: .95rem; font-weight: 500;
+  transition: border-color .15s, background .15s;
+  text-decoration: none;
+}
+.btn-add-obs:hover { border-color: var(--lf-cyan); background: #f0f9ff; color: var(--lf-blue); }
+
+/* ── Chips catégorie ─────────────────────────────────────────── */
+.chip-label {
+  display: inline-block; padding: .45rem .9rem; border-radius: 20px;
+  font-size: .82rem; font-weight: 500; cursor: pointer;
+  border: 1.5px solid #d1d5db; background: #fff; color: #374151;
+  transition: background .15s, border-color .15s, color .15s;
+  user-select: none;
+}
+.chip-label.active, .chip-label:hover { background: var(--lf-blue); color: #fff; border-color: var(--lf-blue); }
+
+/* ── Urgence buttons ─────────────────────────────────────────── */
+.urgence-btn {
+  display: inline-block; padding: .6rem .4rem; border-radius: 10px;
+  cursor: pointer; border: 1.5px solid #d1d5db; background: #fff; color: #374151;
+  transition: all .15s; user-select: none;
+}
+.urgence-btn.active, .urgence-btn:hover { background: var(--lf-blue); color: #fff; border-color: var(--lf-blue); }
+
+/* ── Action buttons ──────────────────────────────────────────── */
+.action-btn {
+  display: block; width: 100%; text-align: left; padding: .7rem 1rem;
+  border-radius: 10px; cursor: pointer; border: 1.5px solid #d1d5db;
+  background: #fff; color: #374151; font-size: .88rem;
+  transition: all .15s; user-select: none;
+}
+.action-btn.active, .action-btn:hover { background: var(--lf-blue); color: #fff; border-color: var(--lf-blue); }
+
+/* ── Recap info boxes ────────────────────────────────────────── */
+.recap-info-box {
+  background: #f8fbff; border: 1px solid #d0ddf0; border-radius: 8px; padding: .75rem 1rem;
+}
+.recap-info-box .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--lf-blue); font-weight: 700; }
+.recap-info-box .val   { font-size: .95rem; font-weight: 600; color: #111; margin-top: 3px; }
+
+.recap-header { border-left: 4px solid var(--lf-cyan); padding-left: 1rem; }
+
+/* ── Photo thumb ─────────────────────────────────────────────── */
+.photo-thumb { position: relative; }
+.photo-delete-check { position: absolute; top: -6px; right: -6px; cursor: pointer; }
+.photo-delete-check input { display: none; }
+.photo-delete-check input:checked ~ span { opacity: 1; }
+.photo-delete-check span { opacity: .5; transition: opacity .15s; font-size: 1.1rem; }
+
+/* ── Action box (détail) ─────────────────────────────────────── */
+.action-box {
+  background: #f5f9ff; border: 1px solid #d0ddf0; border-radius: 8px;
+  padding: .5rem .75rem;
+}
+.obs-num { font-weight: 700; color: #aaa; }
+
+/* ── Barre fixe mobile ───────────────────────────────────────── */
+.fixed-bottom-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  padding: .75rem 1rem 1.25rem;
+  background: linear-gradient(to top, #f0f4f8 70%, transparent);
+  z-index: 800;
+}
+
+/* ── Carte visite mobile ─────────────────────────────────────── */
+.visite-card-mobile {
+  display: block; background: #fff; border: 1px solid #e0e8f4;
+  border-radius: 10px; padding: .85rem 1rem; margin-bottom: .6rem;
+  box-shadow: 0 1px 4px rgba(21,61,138,.06);
+  transition: box-shadow .15s;
+}
+.visite-card-mobile:hover { box-shadow: 0 3px 10px rgba(21,61,138,.12); }
+
+/* ── Photo modal (lightbox) ──────────────────────────────────── */
+.photo-modal {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85);
+  z-index: 9999; align-items: center; justify-content: center; cursor: pointer;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); box-shadow: 4px 0 24px rgba(0,0,0,.3); }
+  .main-content { margin-left: 0; }
+  .topbar { padding-left: 56px !important; }
+  .form-card { padding: 1.25rem; }
+}
