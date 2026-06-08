@@ -287,7 +287,7 @@ def auth_callback():
     if not msal_enabled():
         return redirect(url_for('login'))
     state      = request.args.get('state', '')
-    from_teams = state.startswith('T:')
+    from_teams = state.startswith('T:')   # encodé dans le state, pas dans la session
     error      = request.args.get('error')
     if error:
         msg = request.args.get('error_description', error)
@@ -295,14 +295,14 @@ def auth_callback():
             return redirect(url_for('auth_teams_end', error=msg))
         flash(f'Connexion Microsoft refusée : {msg}', 'danger')
         return redirect(url_for('login'))
-    if state != session.get('msal_state', ''):
-        flash('État de sécurité invalide. Veuillez réessayer.', 'danger')
+    code = request.args.get('code')
+    if not code:
+        flash('Connexion Microsoft annulée.', 'warning')
         return redirect(url_for('login'))
-    code   = request.args.get('code', '')
     result = _msal_app().acquire_token_by_authorization_code(
         code, scopes=AZURE['scope'], redirect_uri=AZURE['redirect_uri'])
-    if 'error' in result:
-        msg = result.get('error_description', result['error'])
+    if 'access_token' not in result:
+        msg = result.get('error_description', 'Erreur inconnue')
         if from_teams:
             return redirect(url_for('auth_teams_end', error=msg))
         flash(f'Erreur Microsoft : {msg}', 'danger')
