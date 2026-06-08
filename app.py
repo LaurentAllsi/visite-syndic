@@ -261,7 +261,15 @@ def login_microsoft():
 def auth_teams_start():
     """Lance l'auth Microsoft depuis la popup Teams."""
     if not msal_enabled():
-        return "msal_disabled", 400
+        # Affiche une page lisible pour diagnostiquer le problème
+        return f"""<html><body style="font-family:sans-serif;padding:20px">
+        <h3>⚠️ MSAL non configuré</h3>
+        <p>AZURE_CLIENT_ID présent : {'OUI' if AZURE['client_id'] else 'NON'}</p>
+        <p>AZURE_CLIENT_SECRET présent : {'OUI' if AZURE['client_secret'] else 'NON'}</p>
+        <p>AZURE_TENANT_ID : {AZURE['tenant_id']}</p>
+        <p>AZURE_REDIRECT_URI : {AZURE['redirect_uri']}</p>
+        <p>msal installé : {MSAL_AVAILABLE}</p>
+        </body></html>""", 400
     return redirect(_build_auth_url(from_teams=True))
 
 @app.route('/auth/teams-end')
