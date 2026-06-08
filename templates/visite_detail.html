@@ -17,12 +17,33 @@
     <i class="bi bi-pencil me-1"></i>Continuer
   </a>
 {% endif %}
-<form method="post" action="{{ url_for('visite_delete', vid=v.id) }}" class="d-inline"
-      onsubmit="return confirm('Supprimer définitivement cette visite et toutes ses observations ?')">
-  <button type="submit" class="btn btn-outline-danger btn-sm">
-    <i class="bi bi-trash"></i>
-  </button>
-</form>
+<button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalDelete">
+  <i class="bi bi-trash"></i>
+</button>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="modalDelete" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Supprimer la visite ?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        Cette action est <strong>irréversible</strong>. La visite et toutes ses observations seront définitivement supprimées.
+      </div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        <form method="post" action="{{ url_for('visite_delete', vid=v.id) }}">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash me-1"></i>Supprimer définitivement
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block content %}
