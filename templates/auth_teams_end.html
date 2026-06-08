@@ -6,10 +6,18 @@
 <body>
 <script>
 microsoftTeams.app.initialize().then(function() {
+  {% if error %}
+  microsoftTeams.authentication.notifyFailure("{{ error }}");
+  {% else %}
   microsoftTeams.authentication.notifySuccess("{{ token }}");
+  {% endif %}
 }).catch(function() {
-  // Fallback si hors Teams : rediriger via le token
-  window.location.href = "/auth/teams-token?token={{ token }}";
+  // Hors Teams — redirection directe
+  {% if error %}
+  window.location.href = "/login?error={{ error | urlencode }}";
+  {% else %}
+  window.location.href = "/auth/teams-complete?token={{ token }}";
+  {% endif %}
 });
 </script>
 </body>

@@ -12,25 +12,79 @@
   <div class="login-logo">Laforêt<span>.</span></div>
   <p class="login-sub">Syndic · Visites d'immeubles</p>
 
+  {% if error %}
+  <div class="alert alert-danger py-2 mb-3 small">{{ error }}</div>
+  {% endif %}
   {% for cat, msg in get_flashed_messages(with_categories=True) %}
   <div class="alert alert-{{ cat }} py-2 small">{{ msg }}</div>
   {% endfor %}
 
+  {% if msal_enabled %}
+  <!-- Bouton Microsoft — comportement adapté selon contexte (Teams ou navigateur) -->
+  <a href="{{ url_for('login_microsoft') }}" id="btnMicrosoft"
+     class="btn btn-microsoft w-100 py-2 fw-semibold mb-1">
+    <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1"  y="1"  width="9" height="9" fill="#F25022"/>
+      <rect x="11" y="1"  width="9" height="9" fill="#7FBA00"/>
+      <rect x="1"  y="11" width="9" height="9" fill="#00A4EF"/>
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+    </svg>
+    Se connecter avec Microsoft
+  </a>
+  <div class="login-divider">ou mot de passe</div>
+  {% endif %}
+
   <form method="post">
     <div class="mb-3">
-      <label class="form-label small fw-semibold">Votre prénom</label>
-      <input type="text" name="username" class="form-control" placeholder="Ex : Laurent"
-             value="{{ request.form.get('username','') }}" autocomplete="name">
+      <label class="form-label small fw-semibold">Votre nom</label>
+      <input type="text" name="nom" class="form-control"
+             placeholder="Ex : Laurent"
+             value="{{ request.form.get('nom','') }}"
+             autocomplete="name">
     </div>
     <div class="mb-4">
       <label class="form-label small fw-semibold">Mot de passe</label>
-      <input type="password" name="password" class="form-control" placeholder="••••••••"
-             autocomplete="current-password" required>
+      <input type="password" name="password" class="form-control"
+             placeholder="••••••••" autocomplete="current-password" required
+             {% if not msal_enabled %}autofocus{% endif %}>
     </div>
     <button type="submit" class="btn btn-lf w-100 py-2 fw-semibold">
       Se connecter
     </button>
   </form>
+
+  <div class="text-center mt-3">
+    <small class="text-muted">Laforêt Montauban · Allsimmo SARL</small>
+  </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% if msal_enabled %}
+<script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+<script>
+  // Détecte si on est dans Teams et adapte le bouton Microsoft
+  microsoftTeams.app.initialize().then(function() {
+    var btn = document.getElementById('btnMicrosoft');
+    if (btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        microsoftTeams.authentication.authenticate({
+          url: window.location.origin + '/auth/teams-start',
+          width: 600,
+          height: 535
+        }).then(function(token) {
+          window.location.href = '/auth/teams-complete?token=' + encodeURIComponent(token);
+        }).catch(function(reason) {
+          if (reason && reason !== 'CancelledByUser') {
+            alert('Connexion échouée : ' + reason);
+          }
+        });
+      });
+    }
+  }).catch(function() {
+    // Pas dans Teams — le lien href standard fonctionne
+  });
+</script>
+{% endif %}
 </body>
 </html>

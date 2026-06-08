@@ -9,6 +9,12 @@ import sqlite3, os, io, base64, json, time as _time, secrets as _sec
 from datetime import datetime, date
 from functools import wraps
 
+try:
+    import msal
+    MSAL_AVAILABLE = True
+except ImportError:
+    MSAL_AVAILABLE = False
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'visite-syndic-laforet-2026')
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
@@ -27,12 +33,25 @@ FACT_DB = os.environ.get(
     os.path.join(BASE_DIR, '..', 'facturation-app', 'data', 'syndic.db')
 )
 
-# Tokens temporaires pour auth Teams popup (comme facturation)
+# ── Azure AD / MSAL (même config que facturation) ────────────────────────────
+AZURE = {
+    'client_id':     os.environ.get('AZURE_CLIENT_ID', ''),
+    'client_secret': os.environ.get('AZURE_CLIENT_SECRET', ''),
+    'tenant_id':     os.environ.get('AZURE_TENANT_ID', 'organizations'),
+    'redirect_uri':  os.environ.get('AZURE_REDIRECT_URI',
+                                    'http://localhost:5001/auth/callback'),
+    'scope': ['User.Read'],
+}
+
+def msal_enabled():
+    return MSAL_AVAILABLE and bool(AZURE['client_id'])
+
+# Tokens temporaires pour le relais Teams popup → onglet principal
 _teams_tokens: dict = {}
 
-def _create_teams_token(user: str) -> str:
+def _create_teams_token(user: str, email: str = '') -> str:
     tok = _sec.token_urlsafe(32)
-    _teams_tokens[tok] = {'user': user, 'expires': _time.time() + 300}
+    _teams_tokens[tok] = {'user': user, 'email': email, 'expires': _time.time() + 300}
     expired = [k for k, v in _teams_tokens.items() if _time.time() > v['expires']]
     for k in expired:
         _teams_tokens.pop(k, None)
@@ -202,42 +221,100 @@ def login_required(f):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
     if request.method == 'POST':
         pwd  = request.form.get('password', '')
-        user = request.form.get('username', 'Collaborateur').strip() or 'Collaborateur'
+        user = request.form.get('nom', 'Collaborateur').strip() or 'Collaborateur'
         if pwd == APP_PASSWORD:
             session['user'] = user
             return redirect(request.args.get('next') or url_for('dashboard'))
-        flash('Mot de passe incorrect.', 'danger')
-    return render_template('login.html')
+        error = 'Mot de passe incorrect.'
+    return render_template('login.html', error=error, msal_enabled=msal_enabled())
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# ── Teams auth (popup → token → session) ────────────────────────────────────
-@app.route('/auth/teams-login', methods=['GET', 'POST'])
-def auth_teams_login():
-    """Page de login affichée dans la popup Teams."""
-    if request.method == 'POST':
-        pwd  = request.form.get('password', '')
-        user = request.form.get('username', 'Collaborateur').strip() or 'Collaborateur'
-        if pwd == APP_PASSWORD:
-            tok = _create_teams_token(user)
-            return render_template('auth_teams_end.html', token=tok)
-        flash('Mot de passe incorrect.', 'danger')
-    return render_template('login.html', teams_popup=True)
+# ── Auth Microsoft (MSAL) — identique à facturation ──────────────────────────
+def _msal_app():
+    return msal.ConfidentialClientApplication(
+        AZURE['client_id'],
+        authority=f"https://login.microsoftonline.com/{AZURE['tenant_id']}",
+        client_credential=AZURE['client_secret'],
+    )
 
-@app.route('/auth/teams-token')
-def auth_teams_token():
-    """Échange le token contre une session (appelé depuis l'onglet principal)."""
-    tok = request.args.get('token', '')
-    info = _teams_tokens.pop(tok, None)
-    if not info or _time.time() > info['expires']:
-        flash('Lien de connexion expiré. Veuillez réessayer.', 'danger')
+def _build_auth_url(from_teams=False):
+    state = ('T:' if from_teams else 'W:') + _sec.token_hex(16)
+    session['msal_state'] = state
+    return _msal_app().get_authorization_request_url(
+        AZURE['scope'], redirect_uri=AZURE['redirect_uri'], state=state)
+
+@app.route('/login/microsoft')
+def login_microsoft():
+    if not msal_enabled():
+        flash("Authentification Microsoft non configurée.", 'warning')
         return redirect(url_for('login'))
-    session['user'] = info['user']
+    return redirect(_build_auth_url(from_teams=False))
+
+@app.route('/auth/teams-start')
+def auth_teams_start():
+    """Lance l'auth Microsoft depuis la popup Teams."""
+    if not msal_enabled():
+        return "msal_disabled", 400
+    return redirect(_build_auth_url(from_teams=True))
+
+@app.route('/auth/teams-end')
+def auth_teams_end():
+    """Page de fin popup — notifie le SDK Teams avec le token de passage."""
+    token = request.args.get('token', '')
+    error = request.args.get('error', '')
+    return render_template('auth_teams_end.html', token=token, error=error)
+
+@app.route('/auth/teams-complete')
+def auth_teams_complete():
+    """Échange le token de passage contre une session dans l'onglet Teams."""
+    tok  = request.args.get('token', '')
+    data = _teams_tokens.pop(tok, None)
+    if not data or _time.time() > data['expires']:
+        flash("Lien de connexion expiré, veuillez réessayer.", 'warning')
+        return redirect(url_for('login'))
+    session['user'] = data['user']
+    return redirect(url_for('dashboard'))
+
+@app.route('/auth/callback')
+def auth_callback():
+    if not msal_enabled():
+        return redirect(url_for('login'))
+    state      = request.args.get('state', '')
+    from_teams = state.startswith('T:')
+    error      = request.args.get('error')
+    if error:
+        msg = request.args.get('error_description', error)
+        if from_teams:
+            return redirect(url_for('auth_teams_end', error=msg))
+        flash(f'Connexion Microsoft refusée : {msg}', 'danger')
+        return redirect(url_for('login'))
+    if state != session.get('msal_state', ''):
+        flash('État de sécurité invalide. Veuillez réessayer.', 'danger')
+        return redirect(url_for('login'))
+    code   = request.args.get('code', '')
+    result = _msal_app().acquire_token_by_authorization_code(
+        code, scopes=AZURE['scope'], redirect_uri=AZURE['redirect_uri'])
+    if 'error' in result:
+        msg = result.get('error_description', result['error'])
+        if from_teams:
+            return redirect(url_for('auth_teams_end', error=msg))
+        flash(f'Erreur Microsoft : {msg}', 'danger')
+        return redirect(url_for('login'))
+    claims = result.get('id_token_claims', {})
+    user   = claims.get('name') or claims.get('preferred_username', 'Utilisateur')
+    email  = claims.get('preferred_username', '')
+    if from_teams:
+        tok = _create_teams_token(user, email)
+        return redirect(url_for('auth_teams_end', token=tok))
+    session['user']       = user
+    session['user_email'] = email
     return redirect(url_for('dashboard'))
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────

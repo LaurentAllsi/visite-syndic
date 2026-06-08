@@ -113,6 +113,14 @@ body { background: #f0f4f8; font-family: 'Segoe UI', system-ui, sans-serif; }
   border-color: var(--lf-cyan); box-shadow: 0 0 0 .2rem rgba(0,158,227,.18);
 }
 
+/* ── Microsoft button ────────────────────────────────────────── */
+.btn-microsoft {
+  background: #fff; color: #444; border: 1.5px solid #ddd;
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  transition: background .15s, border-color .15s;
+}
+.btn-microsoft:hover { background: #f5f5f5; border-color: #aaa; color: #222; }
+
 /* ── Login ───────────────────────────────────────────────────── */
 .login-bg  { background: linear-gradient(135deg, var(--lf-blue) 0%, var(--lf-cyan) 100%); }
 .login-card {
