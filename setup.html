@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Setup — Visite Syndic</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+  <style>
+    body { background: #f0f4fb; font-family: 'Segoe UI', sans-serif; }
+    .brand { background: #153D8A; color: #fff; padding: 1.5rem 2rem; }
+    .brand span { color: #009EE3; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(21,61,138,.10); }
+    .step-row { display: flex; align-items: center; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #eee; }
+    .step-row:last-child { border-bottom: none; }
+    .step-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .step-pending  { background: #e9ecef; color: #6c757d; }
+    .step-running  { background: #cfe2ff; color: #0d6efd; }
+    .step-done     { background: #d1e7dd; color: #0f5132; }
+    .step-error    { background: #f8d7da; color: #842029; }
+    .btn-laforet { background: #153D8A; color: #fff; border: none; }
+    .btn-laforet:hover { background: #009EE3; color: #fff; }
+    pre { background: #1e1e1e; color: #d4d4d4; border-radius: 8px; font-size: .8rem; max-height: 300px; overflow-y: auto; padding: 1rem; }
+  </style>
+</head>
+<body>
+<div class="brand mb-4">
+  <h4 class="mb-0">Laforêt Montauban &mdash; <span>Visite Syndic</span> &mdash; Setup</h4>
+  <small class="opacity-75">Initialisation SharePoint (à exécuter une seule fois)</small>
+</div>
+
+<div class="container" style="max-width:700px">
+  <div id="login-section" class="card p-4 mb-4">
+    <h5 class="mb-3">Étape 1 — Connexion</h5>
+    <p class="text-muted small">Connectez-vous avec votre compte Microsoft pour autoriser la création des listes SharePoint.</p>
+    <button id="btn-login" class="btn btn-laforet"><i>🔐</i> Se connecter avec Microsoft</button>
+    <div id="user-info" class="mt-3 d-none alert alert-success mb-0"></div>
+  </div>
+
+  <div id="setup-section" class="card p-4 mb-4 d-none">
+    <h5 class="mb-3">Étape 2 — Initialisation SharePoint</h5>
+    <div id="steps-list"></div>
+    <button id="btn-run" class="btn btn-laforet mt-3">▶ Lancer le setup</button>
+    <div id="result-ok" class="alert alert-success mt-3 d-none">
+      <strong>✅ Setup terminé avec succès !</strong><br>
+      Toutes les listes et le dossier ont été créés. Vous pouvez maintenant utiliser <a href="index.html">l'application</a>.
+    </div>
+    <div id="result-error" class="alert alert-danger mt-3 d-none"></div>
+  </div>
+
+  <div id="log-section" class="card p-4 d-none">
+    <h5 class="mb-3">Journal détaillé</h5>
+    <pre id="log-pre"></pre>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID  = '6b5a2aa5-cc80-4dba-8232-badc227b5996';
+const TENANT_ID  = '9b6f0a5e-fd44-4a3f-a1de-430911fda398';
+const SITE_HOST  = 'allsimmo.sharepoint.com';
+const SITE_PATH  = '/sites/ALLSIMMO-Syndic';
+const SCOPES     = ['https://graph.microsoft.com/Sites.Manage.All'];
+
+const msalConfig = {
+  auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin + window.location.pathname },
+  cache: { cacheLocation: 'localStorage' }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+let account = null;
+let siteId   = null;
+
+// ─── MSAL ────────────────────────────────────────────────────────────────────
+msalInstance.initialize().then(() => {
+  msalInstance.handleRedirectPromise().then(resp => {
+    if (resp) { account = resp.account; showLoggedIn(); }
+    else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length) { account = accounts[0]; showLoggedIn(); }
+    }
+  });
+});
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  try {
+    await msalInstance.initialize();
+    await msalInstance.loginRedirect({ scopes: SCOPES });
+  } catch(e) {
+    alert('Erreur connexion : ' + e.message);
+    console.error(e);
+  }
+});
+
+function showLoggedIn() {
+  document.getElementById('user-info').textContent = `Connecté : ${account.name} (${account.username})`;
+  document.getElementById('user-info').classList.remove('d-none');
+  document.getElementById('setup-section').classList.remove('d-none');
+  renderSteps();
+}
+
+async function getToken() {
+  try {
+    const resp = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return resp.accessToken;
+  } catch(e) {
+    const resp = await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account });
+    return resp.accessToken;
+  }
+}
+
+async function graph(method, url, body) {
+  const token = await getToken();
+  const opts = { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(`https://graph.microsoft.com/v1.0${url}`, opts);
+  if (!r.ok) { const txt = await r.text(); throw new Error(`${method} ${url} → ${r.status}: ${txt}`); }
+  return r.status === 204 ? null : r.json();
+}
+
+// ─── Steps definition ────────────────────────────────────────────────────────
+const STEPS = [
+  { id: 'site',      label: 'Résoudre le site SharePoint' },
+  { id: 'list_cp',   label: 'Créer la liste VS_Coproprietes' },
+  { id: 'cols_cp',   label: 'Ajouter colonnes VS_Coproprietes' },
+  { id: 'list_vi',   label: 'Créer la liste VS_Visites' },
+  { id: 'cols_vi',   label: 'Ajouter colonnes VS_Visites' },
+  { id: 'list_ob',   label: 'Créer la liste VS_Observations' },
+  { id: 'cols_ob',   label: 'Ajouter colonnes VS_Observations' },
+  { id: 'folder',    label: 'Créer le dossier Visite-Photos dans le drive' },
+];
+
+function renderSteps() {
+  const container = document.getElementById('steps-list');
+  container.innerHTML = STEPS.map(s => `
+    <div class="step-row" id="step-${s.id}">
+      <div class="step-icon step-pending" id="icon-${s.id}">⏳</div>
+      <span id="label-${s.id}">${s.label}</span>
+    </div>`).join('');
+}
+
+function setStepState(id, state, extra) {
+  const icon  = document.getElementById(`icon-${id}`);
+  const label = document.getElementById(`label-${id}`);
+  icon.className = `step-icon step-${state}`;
+  if (state === 'running')  icon.textContent = '⟳';
+  if (state === 'done')     icon.textContent = '✔';
+  if (state === 'error')    icon.textContent = '✖';
+  if (extra) label.textContent = extra;
+}
+
+const logEl = document.getElementById('log-pre');
+function log(msg) {
+  logEl.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+  document.getElementById('log-section').classList.remove('d-none');
+}
+
+// ─── Column helpers ───────────────────────────────────────────────────────────
+async function addCol(listId, def) {
+  try { await graph('POST', `/sites/${siteId}/lists/${listId}/columns`, def); log(`  Col créée : ${def.name}`); }
+  catch(e) { if (e.message.includes('409') || e.message.includes('already exists') || e.message.toLowerCase().includes('nameAlreadyExists'.toLowerCase())) { log(`  Col déjà existante : ${def.name}`); } else { throw e; } }
+}
+
+async function ensureList(name) {
+  try {
+    const existing = await graph('GET', `/sites/${siteId}/lists/${name}`);
+    log(`  Liste déjà existante : ${name} (${existing.id})`);
+    return existing.id;
+  } catch(e) {
+    if (e.message.includes('404')) {
+      const created = await graph('POST', `/sites/${siteId}/lists`, { displayName: name, list: { template: 'genericList' } });
+      log(`  Liste créée : ${name} (${created.id})`);
+      await new Promise(r => setTimeout(r, 1500));
+      return created.id;
+    }
+    throw e;
+  }
+}
+
+// ─── Run setup ────────────────────────────────────────────────────────────────
+document.getElementById('btn-run').addEventListener('click', async () => {
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('result-ok').classList.add('d-none');
+  document.getElementById('result-error').classList.add('d-none');
+
+  try {
+    // 1. Resolve site
+    setStepState('site', 'running');
+    const siteRes = await graph('GET', `/sites/${SITE_HOST}:${SITE_PATH}`);
+    siteId = siteRes.id;
+    log(`Site résolu : ${siteId}`);
+    setStepState('site', 'done', `Site SharePoint résolu ✔`);
+
+    // 2. VS_Coproprietes
+    setStepState('list_cp', 'running');
+    const cpId = await ensureList('VS_Coproprietes');
+    setStepState('list_cp', 'done');
+    setStepState('cols_cp', 'running');
+    await addCol(cpId, { name: 'Adresse',  text: { allowMultipleLines: false } });
+    await addCol(cpId, { name: 'NbLots',   number: {} });
+    await addCol(cpId, { name: 'Actif',    boolean: {} });
+    setStepState('cols_cp', 'done');
+
+    // 3. VS_Visites
+    setStepState('list_vi', 'running');
+    const viId = await ensureList('VS_Visites');
+    setStepState('list_vi', 'done');
+    setStepState('cols_vi', 'running');
+    await addCol(viId, { name: 'CoproprieteId',     text: {} });
+    await addCol(viId, { name: 'CoproprieteNom',    text: {} });
+    await addCol(viId, { name: 'DateVisite',        dateTime: { format: 'dateOnly' } });
+    await addCol(viId, { name: 'HeureDebut',        text: {} });
+    await addCol(viId, { name: 'HeureFin',          text: {} });
+    await addCol(viId, { name: 'Redacteur',         text: {} });
+    await addCol(viId, { name: 'PersonnesPresentes',text: { allowMultipleLines: false } });
+    await addCol(viId, { name: 'Statut',            choice: { choices: ['brouillon','cloture'] } });
+    await addCol(viId, { name: 'NotesGlobales',     text: { allowMultipleLines: true } });
+    setStepState('cols_vi', 'done');
+
+    // 4. VS_Observations
+    setStepState('list_ob', 'running');
+    const obId = await ensureList('VS_Observations');
+    setStepState('list_ob', 'done');
+    setStepState('cols_ob', 'running');
+    await addCol(obId, { name: 'VisiteId',          text: {} });
+    await addCol(obId, { name: 'Ordre',             number: {} });
+    await addCol(obId, { name: 'Categorie',         text: {} });
+    await addCol(obId, { name: 'CategorieCustom',   text: {} });
+    await addCol(obId, { name: 'Description',       text: { allowMultipleLines: true } });
+    await addCol(obId, { name: 'Urgence',           choice: { choices: ['urgent','planifier','info'] } });
+    await addCol(obId, { name: 'Action',            text: {} });
+    await addCol(obId, { name: 'ActionCommentaire', text: { allowMultipleLines: true } });
+    setStepState('cols_ob', 'done');
+
+    // 5. Folder Visite-Photos
+    setStepState('folder', 'running');
+    try {
+      await graph('POST', `/sites/${siteId}/drive/root/children`, {
+        name: 'Visite-Photos',
+        folder: {},
+        '@microsoft.graph.conflictBehavior': 'ignore'
+      });
+      log('Dossier Visite-Photos créé (ou déjà existant).');
+    } catch(e) { log(`Dossier : ${e.message}`); }
+    setStepState('folder', 'done');
+
+    document.getElementById('result-ok').classList.remove('d-none');
+  } catch(e) {
+    log(`ERREUR : ${e.message}`);
+    document.getElementById('result-error').textContent = `Erreur : ${e.message}`;
+    document.getElementById('result-error').classList.remove('d-none');
+    // Mark remaining steps
+    STEPS.forEach(s => {
+      const icon = document.getElementById(`icon-${s.id}`);
+      if (icon.textContent === '⏳' || icon.textContent === '⟳') setStepState(s.id, 'error');
+    });
+  }
+
+  document.getElementById('btn-run').disabled = false;
+});
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+

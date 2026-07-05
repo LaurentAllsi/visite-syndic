@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visite Syndic — Laforêt Montauban</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root { --blue:#153D8A; --cyan:#009EE3; }
+    body { background:#f0f4fb; font-family:'Segoe UI',sans-serif; min-height:100vh; }
+
+    /* NAVBAR */
+    .navbar { background:var(--blue); }
+    .navbar-brand { color:#fff!important; font-weight:700; }
+    .navbar-brand span { color:var(--cyan); }
+    .nav-link { color:rgba(255,255,255,.8)!important; }
+    .nav-link.active, .nav-link:hover { color:#fff!important; }
+
+    /* CARDS */
+    .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(21,61,138,.10); }
+    .stat-card { border-radius:12px; padding:1.2rem 1.5rem; color:#fff; }
+    .stat-card.blue  { background:var(--blue); }
+    .stat-card.cyan  { background:var(--cyan); }
+    .stat-card.green { background:#198754; }
+    .stat-card .num { font-size:2.2rem; font-weight:700; line-height:1; }
+    .stat-card .lbl { font-size:.82rem; opacity:.85; margin-top:.2rem; }
+
+    /* PAGES */
+    .page { display:none; }
+    .page.active { display:block; }
+
+    /* CHIPS */
+    .chip { display:inline-block; padding:.3rem .75rem; border-radius:20px; cursor:pointer;
+            border:2px solid #dee2e6; font-size:.82rem; user-select:none; transition:.15s; }
+    .chip.selected-cat  { border-color:var(--blue); background:var(--blue); color:#fff; }
+    .chip.selected-urg-urgent   { border-color:#dc3545; background:#dc3545; color:#fff; }
+    .chip.selected-urg-planifier{ border-color:#fd7e14; background:#fd7e14; color:#fff; }
+    .chip.selected-urg-info     { border-color:#198754; background:#198754; color:#fff; }
+
+    /* URGENCE BADGES */
+    .badge-urgent    { background:#dc3545; color:#fff; }
+    .badge-planifier { background:#fd7e14; color:#fff; }
+    .badge-info      { background:#198754; color:#fff; }
+
+    /* STATUT */
+    .badge-brouillon { background:#6c757d; color:#fff; }
+    .badge-cloture   { background:var(--blue); color:#fff; }
+
+    /* LOADING */
+    #loading-overlay { position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:9999;
+                       display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem; }
+    .spinner { width:48px;height:48px;border:5px solid #dee2e6;border-top-color:var(--blue);
+               border-radius:50%;animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* LIGHTBOX */
+    #lightbox { position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:10000;
+                display:none;align-items:center;justify-content:center; }
+    #lightbox img { max-width:90vw;max-height:90vh;border-radius:8px; }
+    #lightbox .close-lb { position:absolute;top:1rem;right:1.5rem;color:#fff;font-size:2rem;cursor:pointer; }
+
+    /* MOBILE tweaks */
+    @media(max-width:576px){
+      .stat-card .num { font-size:1.7rem; }
+      .container-main { padding:0 .5rem; }
+    }
+
+    /* PRINT / PDF area — hidden by default */
+    #pdf-content { display:none; }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="text-muted small">Chargement…</div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox">
+  <span class="close-lb" onclick="closeLightbox()">&times;</span>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<!-- LOGIN PAGE -->
+<div id="login-page" style="display:none;min-height:100vh;align-items:center;justify-content:center;flex-direction:column;gap:1.5rem;">
+  <div style="text-align:center;">
+    <div style="font-size:3rem;">🏢</div>
+    <h3 style="color:var(--blue);font-weight:700;">Visite Syndic</h3>
+    <p class="text-muted">Laforêt Montauban</p>
+  </div>
+  <button id="btn-login" class="btn btn-lg" style="background:var(--blue);color:#fff;min-width:220px;">
+    <i class="bi bi-microsoft me-2"></i>Se connecter
+  </button>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+  <nav class="navbar navbar-expand-lg sticky-top mb-3">
+    <div class="container-fluid">
+      <span class="navbar-brand">Laforêt <span>Visite Syndic</span></span>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon" style="filter:invert(1)"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav ms-auto gap-1">
+          <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('dashboard')"><i class="bi bi-speedometer2 me-1"></i>Tableau de bord</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('coproprietes')"><i class="bi bi-building me-1"></i>Copropriétés</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" onclick="showPage('visites')"><i class="bi bi-clipboard-check me-1"></i>Visites</a></li>
+          <li class="nav-item"><a class="nav-link" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-1"></i>Déconnexion</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container container-main pb-5" style="max-width:900px;">
+
+    <!-- ══════════ DASHBOARD ══════════ -->
+    <div id="page-dashboard" class="page">
+      <h5 class="mb-3 fw-bold" style="color:var(--blue)"><i class="bi bi-speedometer2 me-2"></i>Tableau de bord</h5>
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4"><div class="stat-card blue"><div class="num" id="stat-cp">—</div><div class="lbl">Copropriétés actives</div></div></div>
+        <div class="col-6 col-md-4"><div class="stat-card cyan"><div class="num" id="stat-en-cours">—</div><div class="lbl">Visites en cours</div></div></div>
+        <div class="col-6 col-md-4"><div class="stat-card green"><div class="num" id="stat-cloturees">—</div><div class="lbl">Clôturées ce mois</div></div></div>
+      </div>
+      <div class="card p-3">
+        <h6 class="fw-semibold mb-3">5 dernières visites</h6>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Copropriété</th><th>Date</th><th>Rédacteur</th><th>Statut</th><th></th></tr></thead>
+            <tbody id="dash-visites-tbody"><tr><td colspan="5" class="text-center text-muted">Chargement…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ COPROPRIETES ══════════ -->
+    <div id="page-coproprietes" class="page">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0" style="color:var(--blue)"><i class="bi bi-building me-2"></i>Copropriétés</h5>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="showImportModal()"><i class="bi bi-upload me-1"></i>Import</button>
+          <button class="btn btn-sm" style="background:var(--blue);color:#fff;" onclick="openCpModal()"><i class="bi bi-plus-lg me-1"></i>Ajouter</button>
+        </div>
+      </div>
+      <div class="card p-3">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Nom</th><th>Adresse</th><th>Lots</th><th>Actif</th><th></th></tr></thead>
+            <tbody id="cp-tbody"><tr><td colspan="5" class="text-center text-muted">Chargement…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ VISITES LIST ══════════ -->
+    <div id="page-visites" class="page">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="fw-bold mb-0" style="color:var(--blue)"><i class="bi bi-clipboard-check me-2"></i>Visites</h5>
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff;" onclick="openNewVisiteModal()"><i class="bi bi-plus-lg me-1"></i>Nouvelle visite</button>
+      </div>
+      <div class="card p-3 mb-3">
+        <div class="row g-2">
+          <div class="col-sm-5"><input id="vi-search" class="form-control form-control-sm" placeholder="Rechercher…" oninput="filterVisites()"></div>
+          <div class="col-sm-4">
+            <select id="vi-statut-filter" class="form-select form-select-sm" onchange="filterVisites()">
+              <option value="">Tous les statuts</option>
+              <option value="brouillon">En cours</option>
+              <option value="cloture">Clôturées</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="vi-list"></div>
+    </div>
+
+    <!-- ══════════ VISITE DETAIL (observations mode) ══════════ -->
+    <div id="page-visite-detail" class="page">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <button class="btn btn-sm btn-outline-secondary" onclick="showPage('visites')"><i class="bi bi-arrow-left"></i></button>
+        <h5 class="fw-bold mb-0" style="color:var(--blue)" id="detail-title">Visite</h5>
+      </div>
+      <div id="detail-meta" class="card p-3 mb-3"></div>
+
+      <!-- Saisie observation (si brouillon) -->
+      <div id="obs-saisie-section">
+        <div class="card p-3 mb-3">
+          <h6 class="fw-semibold mb-3"><i class="bi bi-plus-circle me-1" style="color:var(--cyan)"></i>Ajouter une observation</h6>
+
+          <label class="form-label fw-semibold small">Catégorie</label>
+          <div id="cat-chips" class="d-flex flex-wrap gap-2 mb-3"></div>
+          <input id="obs-cat-custom" class="form-control form-control-sm mb-3 d-none" placeholder="Autre — précisez…">
+
+          <label class="form-label fw-semibold small">Description</label>
+          <textarea id="obs-description" class="form-control mb-3" rows="3" placeholder="Décrivez l'observation…"></textarea>
+
+          <label class="form-label fw-semibold small">Urgence</label>
+          <div class="d-flex gap-2 mb-3" id="urg-chips"></div>
+
+          <label class="form-label fw-semibold small">Action</label>
+          <select id="obs-action" class="form-select mb-3">
+            <option>Aucune action</option>
+            <option>Contacter un prestataire</option>
+            <option>Signaler au conseil syndical</option>
+            <option>Travaux à prévoir</option>
+            <option>À surveiller</option>
+          </select>
+
+          <label class="form-label fw-semibold small">Commentaire action</label>
+          <textarea id="obs-action-comment" class="form-control mb-3" rows="2" placeholder="(optionnel)"></textarea>
+
+          <label class="form-label fw-semibold small">Photos</label>
+          <input type="file" id="obs-photos" class="form-control mb-3" multiple accept="image/*" capture="environment">
+
+          <button class="btn w-100 fw-semibold" style="background:var(--cyan);color:#fff;" onclick="saveObservation()">
+            <i class="bi bi-check-lg me-1"></i>Enregistrer l'observation
+          </button>
+        </div>
+
+        <!-- Clôturer -->
+        <div class="card p-3 mb-3 border-0" style="background:#fff7e6;">
+          <h6 class="fw-semibold mb-2" style="color:#856404;"><i class="bi bi-lock me-1"></i>Clôturer la visite</h6>
+          <div class="row g-2">
+            <div class="col-sm-4">
+              <label class="form-label small">Heure de fin</label>
+              <input type="time" id="cloture-heure-fin" class="form-control form-control-sm">
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Notes globales</label>
+              <textarea id="cloture-notes" class="form-control" rows="3" placeholder="Synthèse, remarques générales…"></textarea>
+            </div>
+          </div>
+          <button class="btn btn-warning mt-2 fw-semibold" onclick="cloturer()"><i class="bi bi-lock-fill me-1"></i>Clôturer</button>
+        </div>
+      </div>
+
+      <!-- Observations list -->
+      <div id="obs-list-section">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-semibold mb-0">Observations</h6>
+          <div class="d-flex gap-2">
+            <button id="btn-reopen" class="btn btn-sm btn-outline-secondary d-none" onclick="reouvrir()"><i class="bi bi-unlock me-1"></i>Réouvrir</button>
+            <button id="btn-pdf" class="btn btn-sm" style="background:var(--blue);color:#fff;" onclick="exportPDF()"><i class="bi bi-file-earmark-pdf me-1"></i>Export PDF</button>
+          </div>
+        </div>
+        <div id="obs-list"></div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+</div><!-- /app -->
+
+<!-- ─── MODALS ─────────────────────────────────────────────────────────────── -->
+
+<!-- Copropriété modal -->
+<div class="modal fade" id="cpModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--blue);color:#fff;">
+        <h5 class="modal-title" id="cp-modal-title">Copropriété</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cp-edit-id">
+        <div class="mb-3"><label class="form-label">Nom *</label><input id="cp-nom" class="form-control" required></div>
+        <div class="mb-3"><label class="form-label">Adresse</label><input id="cp-adresse" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Nombre de lots</label><input id="cp-lots" type="number" class="form-control" min="0"></div>
+        <div class="form-check"><input id="cp-actif" class="form-check-input" type="checkbox" checked><label class="form-check-label" for="cp-actif">Actif</label></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn" style="background:var(--blue);color:#fff;" onclick="saveCp()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--blue);color:#fff;">
+        <h5 class="modal-title">Import copropriétés</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Collez une liste (une copropriété par ligne). Format : <code>Nom, Adresse, NbLots</code> ou simplement le nom.</p>
+        <textarea id="import-text" class="form-control" rows="8" placeholder="Résidence Les Pins, 12 rue des Acacias, 24&#10;Le Clos du Lac&#10;…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn" style="background:var(--blue);color:#fff;" onclick="runImport()">Importer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nouvelle visite modal -->
+<div class="modal fade" id="newVisiteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--blue);color:#fff;">
+        <h5 class="modal-title">Nouvelle visite</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Copropriété *</label>
+          <select id="nv-cp" class="form-select"></select>
+        </div>
+        <div class="mb-3"><label class="form-label">Date *</label><input type="date" id="nv-date" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Heure de début</label><input type="time" id="nv-heure" class="form-control"></div>
+        <div class="mb-3"><label class="form-label">Rédacteur *</label><input id="nv-redacteur" class="form-control" placeholder="Nom du rédacteur"></div>
+        <div class="mb-3"><label class="form-label">Personnes présentes</label><input id="nv-presentes" class="form-control" placeholder="Noms séparés par des virgules"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn" style="background:var(--blue);color:#fff;" onclick="createVisite()">Créer la visite</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9000;">
+  <div id="app-toast" class="toast align-items-center border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toast-msg"></div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF hidden template -->
+<div id="pdf-content"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════
+const CLIENT_ID = '6b5a2aa5-cc80-4dba-8232-badc227b5996';
+const TENANT_ID = '9b6f0a5e-fd44-4a3f-a1de-430911fda398';
+const SITE_HOST = 'allsimmo.sharepoint.com';
+const SITE_PATH = '/sites/ALLSIMMO-Syndic';
+const SCOPES    = ['https://graph.microsoft.com/Sites.ReadWrite.All','https://graph.microsoft.com/Files.ReadWrite.All'];
+
+const CATEGORIES = [
+  'Parties communes','Cage d\'escalier','Parking','Toiture',
+  'Local poubelles','Espaces verts','Boîtes aux lettres',
+  'Ascenseur','Façade','Cave','Autre'
+];
+const URGENCES = [
+  { value:'urgent',    label:'Urgent',      emoji:'🔴', color:'#dc3545' },
+  { value:'planifier', label:'À planifier', emoji:'🟠', color:'#fd7e14' },
+  { value:'info',      label:'Pour info',   emoji:'🟢', color:'#198754' }
+];
+const ACTIONS = [
+  'Aucune action','Contacter un prestataire',
+  'Signaler au conseil syndical','Travaux à prévoir','À surveiller'
+];
+
+// ════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════
+let msalInstance, account, siteId;
+let allCopros = [], allVisites = [], currentVisiteId = null;
+let selectedCat = null, selectedUrg = 'info';
+
+// ════════════════════════════════════════════════════════════
+// MSAL
+// ════════════════════════════════════════════════════════════
+const msalConfig = {
+  auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin + window.location.pathname },
+  cache: { cacheLocation: 'localStorage' }
+};
+
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  const resp = await msalInstance.handleRedirectPromise();
+  if (resp) account = resp.account;
+  else {
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length) account = accounts[0];
+  }
+}
+
+async function getToken() {
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return r.accessToken;
+  } catch {
+    const r = await msalInstance.acquireTokenPopup({ scopes: SCOPES });
+    account = r.account;
+    return r.accessToken;
+  }
+}
+
+function logout() {
+  msalInstance.logoutPopup().catch(() => {});
+  location.reload();
+}
+
+// ════════════════════════════════════════════════════════════
+// GRAPH helpers
+// ════════════════════════════════════════════════════════════
+async function graph(method, url, body, isBlob) {
+  const token = await getToken();
+  const opts = { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+  if (body && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) opts.body = JSON.stringify(body);
+  else if (body) { opts.body = body; delete opts.headers['Content-Type']; }
+  const r = await fetch(`https://graph.microsoft.com/v1.0${url}`, opts);
+  if (!r.ok) { const t = await r.text(); throw new Error(`${r.status}: ${t}`); }
+  if (r.status === 204 || r.headers.get('content-length') === '0') return null;
+  return isBlob ? r.blob() : r.json();
+}
+
+async function graphAll(url) {
+  let items = [], next = `https://graph.microsoft.com/v1.0${url}`;
+  while (next) {
+    const token = await getToken();
+    const r = await fetch(next, { headers: { Authorization: `Bearer ${token}` } });
+    const d = await r.json();
+    items = items.concat(d.value || []);
+    next = d['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
+// ════════════════════════════════════════════════════════════
+// SharePoint helpers
+// ════════════════════════════════════════════════════════════
+async function resolveSite() {
+  const d = await graph('GET', `/sites/${SITE_HOST}:${SITE_PATH}`);
+  siteId = d.id;
+}
+
+// LIST items
+async function spList(listName, filter) {
+  let url = `/sites/${siteId}/lists/${listName}/items?expand=fields&$top=999`;
+  if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
+  return graphAll(url.replace('https://graph.microsoft.com/v1.0',''));
+}
+
+async function spCreate(listName, fields) {
+  return graph('POST', `/sites/${siteId}/lists/${listName}/items`, { fields });
+}
+
+async function spUpdate(listName, id, fields) {
+  return graph('PATCH', `/sites/${siteId}/lists/${listName}/items/${id}/fields`, fields);
+}
+
+async function spDelete(listName, id) {
+  return graph('DELETE', `/sites/${siteId}/lists/${listName}/items/${id}`);
+}
+
+// DRIVE
+async function uploadPhoto(visiteId, obsId, file) {
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/Visite-Photos/${visiteId}/${obsId}/${file.name}:/content`;
+  const r = await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type': file.type||'image/jpeg' }, body: file });
+  if (!r.ok) throw new Error(`Upload photo: ${r.status}`);
+  return r.json();
+}
+
+async function listPhotos(visiteId, obsId) {
+  try {
+    const d = await graph('GET', `/sites/${siteId}/drive/root:/Visite-Photos/${visiteId}/${obsId}:/children`);
+    return d.value || [];
+  } catch { return []; }
+}
+
+async function photoToBase64(fileId) {
+  const blob = await graph('GET', `/sites/${siteId}/drive/items/${fileId}/content`, null, true);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// UI helpers
+// ════════════════════════════════════════════════════════════
+function showLoading(show = true) {
+  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${name}`).classList.add('active');
+  // refresh data
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'coproprietes') loadCopros();
+  if (name === 'visites') loadVisites();
+}
+
+function toast(msg, type='success') {
+  const el = document.getElementById('app-toast');
+  el.className = `toast align-items-center border-0 text-bg-${type}`;
+  document.getElementById('toast-msg').textContent = msg;
+  bootstrap.Toast.getOrCreateInstance(el, { delay: 3000 }).show();
+}
+
+function formatDate(s) {
+  if (!s) return '—';
+  return new Date(s).toLocaleDateString('fr-FR');
+}
+
+function urgBadge(v) {
+  const u = URGENCES.find(x => x.value === v) || URGENCES[2];
+  return `<span class="badge badge-${v}">${u.emoji} ${u.label}</span>`;
+}
+
+function statutBadge(s) {
+  return s === 'cloture'
+    ? `<span class="badge badge-cloture">Clôturée</span>`
+    : `<span class="badge badge-brouillon">En cours</span>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const [cpItems, viItems] = await Promise.all([
+      spList('VS_Coproprietes'),
+      spList('VS_Visites')
+    ]);
+    allCopros  = cpItems.map(i => ({ id: i.id, ...i.fields }));
+    allVisites = viItems.map(i => ({ id: i.id, ...i.fields }));
+
+    const now = new Date();
+    const activeCp  = allCopros.filter(c => c.Actif !== false).length;
+    const enCours   = allVisites.filter(v => v.Statut === 'brouillon').length;
+    const cloMois   = allVisites.filter(v => {
+      if (v.Statut !== 'cloture' || !v.DateVisite) return false;
+      const d = new Date(v.DateVisite);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+
+    document.getElementById('stat-cp').textContent       = activeCp;
+    document.getElementById('stat-en-cours').textContent = enCours;
+    document.getElementById('stat-cloturees').textContent= cloMois;
+
+    const recent = [...allVisites].sort((a,b) => (b.DateVisite||'').localeCompare(a.DateVisite||'')).slice(0,5);
+    document.getElementById('dash-visites-tbody').innerHTML = recent.length
+      ? recent.map(v => `<tr>
+          <td>${v.CoproprieteNom||'—'}</td>
+          <td>${formatDate(v.DateVisite)}</td>
+          <td>${v.Redacteur||'—'}</td>
+          <td>${statutBadge(v.Statut)}</td>
+          <td><button class="btn btn-sm btn-outline-primary py-0" onclick="openVisiteDetail('${v.id}')"><i class="bi bi-eye"></i></button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" class="text-center text-muted">Aucune visite</td></tr>';
+  } catch(e) { toast('Erreur dashboard: ' + e.message, 'danger'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// COPROPRIETES
+// ════════════════════════════════════════════════════════════
+async function loadCopros() {
+  try {
+    const items = await spList('VS_Coproprietes');
+    allCopros = items.map(i => ({ id: i.id, ...i.fields }));
+    renderCpTable();
+  } catch(e) { toast('Erreur copropriétés: '+e.message,'danger'); }
+}
+
+function renderCpTable() {
+  document.getElementById('cp-tbody').innerHTML = allCopros.length
+    ? allCopros.map(c => `<tr>
+        <td class="fw-semibold">${c.Title||'—'}</td>
+        <td>${c.Adresse||'—'}</td>
+        <td>${c.NbLots||'—'}</td>
+        <td>${c.Actif !== false ? '<span class="badge bg-success">Oui</span>' : '<span class="badge bg-secondary">Non</span>'}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary py-0 me-1" onclick="openCpModal('${c.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteCp('${c.id}')"><i class="bi bi-trash"></i></button>
+        </td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" class="text-center text-muted">Aucune copropriété</td></tr>';
+}
+
+function openCpModal(id) {
+  document.getElementById('cp-edit-id').value = id || '';
+  document.getElementById('cp-modal-title').textContent = id ? 'Modifier la copropriété' : 'Nouvelle copropriété';
+  if (id) {
+    const c = allCopros.find(x => x.id === id);
+    document.getElementById('cp-nom').value     = c.Title || '';
+    document.getElementById('cp-adresse').value = c.Adresse || '';
+    document.getElementById('cp-lots').value    = c.NbLots || '';
+    document.getElementById('cp-actif').checked = c.Actif !== false;
+  } else {
+    ['cp-nom','cp-adresse','cp-lots'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('cp-actif').checked = true;
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('cpModal')).show();
+}
+
+async function saveCp() {
+  const id     = document.getElementById('cp-edit-id').value;
+  const fields = {
+    Title:   document.getElementById('cp-nom').value.trim(),
+    Adresse: document.getElementById('cp-adresse').value.trim(),
+    NbLots:  parseInt(document.getElementById('cp-lots').value) || 0,
+    Actif:   document.getElementById('cp-actif').checked
+  };
+  if (!fields.Title) { toast('Le nom est requis','warning'); return; }
+  try {
+    showLoading();
+    if (id) await spUpdate('VS_Coproprietes', id, fields);
+    else    await spCreate('VS_Coproprietes', fields);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('cpModal')).hide();
+    toast('Copropriété enregistrée');
+    await loadCopros();
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+async function deleteCp(id) {
+  if (!confirm('Supprimer cette copropriété ?')) return;
+  try { showLoading(); await spDelete('VS_Coproprietes', id); toast('Supprimée'); await loadCopros(); }
+  catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+function showImportModal() {
+  document.getElementById('import-text').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+}
+
+async function runImport() {
+  const lines = document.getElementById('import-text').value.split('\n').map(l=>l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  showLoading();
+  let ok = 0, err = 0;
+  for (const line of lines) {
+    const parts = line.split(',').map(p=>p.trim());
+    try {
+      await spCreate('VS_Coproprietes', {
+        Title:   parts[0],
+        Adresse: parts[1] || '',
+        NbLots:  parseInt(parts[2]) || 0,
+        Actif:   true
+      });
+      ok++;
+    } catch { err++; }
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).hide();
+  toast(`Import : ${ok} créées, ${err} erreurs`, err > 0 ? 'warning' : 'success');
+  showLoading(false);
+  await loadCopros();
+}
+
+// ════════════════════════════════════════════════════════════
+// VISITES LIST
+// ════════════════════════════════════════════════════════════
+async function loadVisites() {
+  try {
+    const items = await spList('VS_Visites');
+    allVisites = items.map(i => ({ id: i.id, ...i.fields }));
+    renderVisitesList();
+  } catch(e) { toast('Erreur visites: '+e.message,'danger'); }
+}
+
+function filterVisites() { renderVisitesList(); }
+
+function renderVisitesList() {
+  const q   = document.getElementById('vi-search').value.toLowerCase();
+  const st  = document.getElementById('vi-statut-filter').value;
+  const filtered = allVisites.filter(v => {
+    const match = (v.CoproprieteNom||'').toLowerCase().includes(q) || (v.Redacteur||'').toLowerCase().includes(q);
+    const statOk = !st || v.Statut === st;
+    return match && statOk;
+  }).sort((a,b) => (b.DateVisite||'').localeCompare(a.DateVisite||''));
+
+  const container = document.getElementById('vi-list');
+  if (!filtered.length) { container.innerHTML = '<div class="text-center text-muted py-4">Aucune visite trouvée</div>'; return; }
+
+  container.innerHTML = filtered.map(v => `
+    <div class="card mb-2 p-3 d-flex flex-row align-items-center gap-3">
+      <div class="flex-grow-1">
+        <div class="fw-semibold">${v.CoproprieteNom||'—'}</div>
+        <div class="text-muted small">${formatDate(v.DateVisite)} — ${v.Redacteur||'—'}</div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        ${statutBadge(v.Statut)}
+        <button class="btn btn-sm" style="background:var(--blue);color:#fff;" onclick="openVisiteDetail('${v.id}')">
+          <i class="bi bi-eye"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteVisite('${v.id}')"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>`).join('');
+}
+
+function openNewVisiteModal() {
+  // populate copros
+  const sel = document.getElementById('nv-cp');
+  sel.innerHTML = allCopros.length
+    ? allCopros.filter(c => c.Actif !== false).map(c => `<option value="${c.id}" data-nom="${c.Title}">${c.Title}</option>`).join('')
+    : '<option value="">— Aucune copropriété —</option>';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('nv-date').value = today;
+  document.getElementById('nv-heure').value = '';
+  document.getElementById('nv-redacteur').value = '';
+  document.getElementById('nv-presentes').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('newVisiteModal')).show();
+}
+
+async function createVisite() {
+  const sel = document.getElementById('nv-cp');
+  const cpId  = sel.value;
+  const cpNom = sel.options[sel.selectedIndex]?.dataset.nom || '';
+  const date  = document.getElementById('nv-date').value;
+  const redac = document.getElementById('nv-redacteur').value.trim();
+  if (!cpId || !date || !redac) { toast('Copropriété, date et rédacteur sont requis','warning'); return; }
+
+  const fields = {
+    Title:              `${cpNom} - ${date}`,
+    CoproprieteId:      cpId,
+    CoproprieteNom:     cpNom,
+    DateVisite:         date,
+    HeureDebut:         document.getElementById('nv-heure').value,
+    Redacteur:          redac,
+    PersonnesPresentes: document.getElementById('nv-presentes').value,
+    Statut:             'brouillon'
+  };
+  try {
+    showLoading();
+    const created = await spCreate('VS_Visites', fields);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('newVisiteModal')).hide();
+    toast('Visite créée');
+    await loadVisites();
+    openVisiteDetail(created.id);
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+async function deleteVisite(id) {
+  if (!confirm('Supprimer cette visite et toutes ses observations ?')) return;
+  showLoading();
+  try {
+    const obs = await spList('VS_Observations', `VisiteId eq '${id}'`);
+    for (const o of obs) await spDelete('VS_Observations', o.id);
+    await spDelete('VS_Visites', id);
+    toast('Visite supprimée');
+    await loadVisites();
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ════════════════════════════════════════════════════════════
+// VISITE DETAIL
+// ════════════════════════════════════════════════════════════
+async function openVisiteDetail(visiteId) {
+  currentVisiteId = visiteId;
+  showLoading();
+  try {
+    // Ensure visites loaded
+    if (!allVisites.length) {
+      const items = await spList('VS_Visites');
+      allVisites = items.map(i => ({ id: i.id, ...i.fields }));
+    }
+    const v = allVisites.find(x => x.id === visiteId);
+    if (!v) { toast('Visite introuvable','danger'); showLoading(false); return; }
+
+    document.getElementById('detail-title').textContent = v.CoproprieteNom || 'Visite';
+
+    const isBrouillon = v.Statut === 'brouillon';
+
+    document.getElementById('detail-meta').innerHTML = `
+      <div class="row g-2">
+        <div class="col-sm-4"><span class="text-muted small">Date</span><br><strong>${formatDate(v.DateVisite)}</strong></div>
+        <div class="col-sm-4"><span class="text-muted small">Rédacteur</span><br><strong>${v.Redacteur||'—'}</strong></div>
+        <div class="col-sm-4"><span class="text-muted small">Statut</span><br>${statutBadge(v.Statut)}</div>
+        ${v.HeureDebut ? `<div class="col-sm-4"><span class="text-muted small">Heure début</span><br><strong>${v.HeureDebut}</strong></div>` : ''}
+        ${v.HeureFin   ? `<div class="col-sm-4"><span class="text-muted small">Heure fin</span><br><strong>${v.HeureFin}</strong></div>` : ''}
+        ${v.PersonnesPresentes ? `<div class="col-12"><span class="text-muted small">Personnes présentes</span><br>${v.PersonnesPresentes}</div>` : ''}
+        ${v.NotesGlobales ? `<div class="col-12"><span class="text-muted small">Notes globales</span><br>${v.NotesGlobales}</div>` : ''}
+      </div>`;
+
+    // Saisie section
+    document.getElementById('obs-saisie-section').style.display = isBrouillon ? '' : 'none';
+    document.getElementById('btn-reopen').classList.toggle('d-none', isBrouillon);
+    document.getElementById('btn-pdf').style.display = '';
+
+    // Reset form
+    if (isBrouillon) {
+      selectedCat = null; selectedUrg = 'info';
+      renderCatChips(); renderUrgChips();
+      document.getElementById('obs-description').value = '';
+      document.getElementById('obs-action').value = 'Aucune action';
+      document.getElementById('obs-action-comment').value = '';
+      document.getElementById('obs-photos').value = '';
+      document.getElementById('obs-cat-custom').classList.add('d-none');
+      document.getElementById('cloture-heure-fin').value = '';
+      document.getElementById('cloture-notes').value = '';
+    }
+
+    await loadObservationList(visiteId);
+    showPage('visite-detail');
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ── Cat chips ────────────────────────────────────────────────
+function renderCatChips() {
+  document.getElementById('cat-chips').innerHTML = CATEGORIES.map(c => `
+    <span class="chip ${selectedCat === c ? 'selected-cat' : ''}" onclick="selectCat('${c}')">${c}</span>`).join('');
+}
+
+function selectCat(c) {
+  selectedCat = c;
+  renderCatChips();
+  document.getElementById('obs-cat-custom').classList.toggle('d-none', c !== 'Autre');
+}
+
+// ── Urgence chips ────────────────────────────────────────────
+function renderUrgChips() {
+  document.getElementById('urg-chips').innerHTML = URGENCES.map(u => `
+    <span class="chip ${selectedUrg === u.value ? 'selected-urg-'+u.value : ''}"
+          onclick="selectUrg('${u.value}')"
+          style="${selectedUrg !== u.value ? '' : 'font-weight:700;'}">
+      ${u.emoji} ${u.label}
+    </span>`).join('');
+}
+
+function selectUrg(v) { selectedUrg = v; renderUrgChips(); }
+
+// ════════════════════════════════════════════════════════════
+// OBSERVATIONS
+// ════════════════════════════════════════════════════════════
+async function loadObservationList(visiteId) {
+  try {
+    const items = await spList('VS_Observations', `VisiteId eq '${visiteId}'`);
+    const obs = items.map(i => ({ id: i.id, ...i.fields })).sort((a,b) => (a.Ordre||0)-(b.Ordre||0));
+    const v = allVisites.find(x => x.id === visiteId);
+    const isBrouillon = v?.Statut === 'brouillon';
+
+    const container = document.getElementById('obs-list');
+    if (!obs.length) { container.innerHTML = '<div class="text-muted small">Aucune observation encore.</div>'; return; }
+
+    container.innerHTML = '';
+    for (const o of obs) {
+      const photos = await listPhotos(visiteId, o.id);
+      const catLabel = o.Categorie === 'Autre' && o.CategorieCustom ? o.CategorieCustom : (o.Categorie||'');
+      const card = document.createElement('div');
+      card.className = 'card mb-2 p-3';
+      card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <span class="badge" style="background:var(--blue)">${catLabel}</span>
+          <div class="d-flex gap-1 align-items-center">
+            ${urgBadge(o.Urgence)}
+            ${isBrouillon ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteObs('${o.id}')"><i class="bi bi-trash"></i></button>` : ''}
+          </div>
+        </div>
+        <p class="mb-1">${(o.Description||'').replace(/\n/g,'<br>')}</p>
+        ${o.Action && o.Action !== 'Aucune action' ? `<div class="text-muted small"><i class="bi bi-lightning me-1"></i>${o.Action}${o.ActionCommentaire ? ' — '+o.ActionCommentaire : ''}</div>` : ''}
+        ${photos.length ? `<div class="d-flex flex-wrap gap-2 mt-2">${photos.map(p=>`<img src="${p['@microsoft.graph.downloadUrl']||''}" alt="photo" style="height:80px;border-radius:6px;cursor:pointer;object-fit:cover;" onclick="openLightbox('${p['@microsoft.graph.downloadUrl']||p.webUrl}')" onerror="this.style.display='none'">`).join('')}</div>` : ''}`;
+      container.appendChild(card);
+    }
+  } catch(e) { console.error('loadObservationList', e); }
+}
+
+async function saveObservation() {
+  if (!selectedCat) { toast('Sélectionnez une catégorie','warning'); return; }
+  const desc = document.getElementById('obs-description').value.trim();
+  if (!desc) { toast('La description est requise','warning'); return; }
+
+  const catCustom = selectedCat === 'Autre' ? document.getElementById('obs-cat-custom').value.trim() : '';
+
+  // Get current max order
+  const existing = await spList('VS_Observations', `VisiteId eq '${currentVisiteId}'`);
+  const nextOrdre = existing.length + 1;
+
+  const fields = {
+    Title:            `Obs ${nextOrdre}`,
+    VisiteId:         currentVisiteId,
+    Ordre:            nextOrdre,
+    Categorie:        selectedCat,
+    CategorieCustom:  catCustom,
+    Description:      desc,
+    Urgence:          selectedUrg,
+    Action:           document.getElementById('obs-action').value,
+    ActionCommentaire:document.getElementById('obs-action-comment').value.trim()
+  };
+
+  showLoading();
+  try {
+    const created = await spCreate('VS_Observations', fields);
+    const obsId = created.id;
+
+    // Upload photos
+    const photoInput = document.getElementById('obs-photos');
+    for (const file of Array.from(photoInput.files)) {
+      try { await uploadPhoto(currentVisiteId, obsId, file); } catch(e) { console.warn('Photo upload:', e); }
+    }
+
+    // Reset form
+    selectedCat = null; selectedUrg = 'info';
+    renderCatChips(); renderUrgChips();
+    document.getElementById('obs-description').value = '';
+    document.getElementById('obs-action').value = 'Aucune action';
+    document.getElementById('obs-action-comment').value = '';
+    document.getElementById('obs-photos').value = '';
+    document.getElementById('obs-cat-custom').classList.add('d-none');
+
+    toast('Observation enregistrée');
+    await loadObservationList(currentVisiteId);
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+async function deleteObs(obsId) {
+  if (!confirm('Supprimer cette observation ?')) return;
+  showLoading();
+  try { await spDelete('VS_Observations', obsId); await loadObservationList(currentVisiteId); toast('Observation supprimée'); }
+  catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ════════════════════════════════════════════════════════════
+// CLÔTURER / RÉOUVRIR
+// ════════════════════════════════════════════════════════════
+async function cloturer() {
+  const heureFin = document.getElementById('cloture-heure-fin').value;
+  const notes    = document.getElementById('cloture-notes').value.trim();
+  if (!heureFin) { toast('Saisissez l\'heure de fin','warning'); return; }
+  showLoading();
+  try {
+    await spUpdate('VS_Visites', currentVisiteId, { Statut:'cloture', HeureFin:heureFin, NotesGlobales:notes });
+    toast('Visite clôturée');
+    // Refresh allVisites
+    const items = await spList('VS_Visites');
+    allVisites = items.map(i => ({ id: i.id, ...i.fields }));
+    await openVisiteDetail(currentVisiteId);
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+async function reouvrir() {
+  if (!confirm('Réouvrir cette visite en brouillon ?')) return;
+  showLoading();
+  try {
+    await spUpdate('VS_Visites', currentVisiteId, { Statut:'brouillon' });
+    toast('Visite réouverte');
+    const items = await spList('VS_Visites');
+    allVisites = items.map(i => ({ id: i.id, ...i.fields }));
+    await openVisiteDetail(currentVisiteId);
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ════════════════════════════════════════════════════════════
+// LIGHTBOX
+// ════════════════════════════════════════════════════════════
+function openLightbox(src) {
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.getElementById('lb-img').src = '';
+}
+document.getElementById('lightbox').addEventListener('click', function(e) { if (e.target === this) closeLightbox(); });
+
+// ════════════════════════════════════════════════════════════
+// EXPORT PDF
+// ════════════════════════════════════════════════════════════
+async function exportPDF() {
+  const v = allVisites.find(x => x.id === currentVisiteId);
+  if (!v) return;
+
+  showLoading();
+  toast('Génération du PDF en cours…','info');
+
+  try {
+    const obsItems = await spList('VS_Observations', `VisiteId eq '${currentVisiteId}'`);
+    const obs = obsItems.map(i => ({ id: i.id, ...i.fields })).sort((a,b)=>(a.Ordre||0)-(b.Ordre||0));
+
+    // Download photos for each obs
+    const obsWithPhotos = await Promise.all(obs.map(async o => {
+      const photos = await listPhotos(currentVisiteId, o.id);
+      const b64 = await Promise.all(photos.slice(0,4).map(p => photoToBase64(p.id).catch(()=>null)));
+      return { ...o, photosB64: b64.filter(Boolean) };
+    }));
+
+    const urgLabel = v => { const u = URGENCES.find(x=>x.value===v); return u ? `${u.emoji} ${u.label}` : v; };
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;padding:20px;color:#222;">
+        <div style="background:#153D8A;color:#fff;padding:16px 20px;border-radius:6px;margin-bottom:20px;">
+          <h2 style="margin:0 0 6px;font-size:18px;">Rapport de visite — ${v.CoproprieteNom||''}</h2>
+          <div style="font-size:13px;opacity:.85;">
+            Date : ${formatDate(v.DateVisite)} &nbsp;|&nbsp;
+            ${v.HeureDebut?'Début : '+v.HeureDebut:''} ${v.HeureFin?'&nbsp;|&nbsp; Fin : '+v.HeureFin:''}<br>
+            Rédacteur : ${v.Redacteur||'—'}<br>
+            ${v.PersonnesPresentes?'Personnes présentes : '+v.PersonnesPresentes:''}
+          </div>
+        </div>
+
+        ${v.NotesGlobales ? `<div style="background:#f8f9fa;border-left:4px solid #009EE3;padding:10px 14px;margin-bottom:20px;border-radius:4px;"><strong>Notes globales :</strong><br>${v.NotesGlobales}</div>` : ''}
+
+        <h3 style="color:#153D8A;font-size:15px;border-bottom:2px solid #153D8A;padding-bottom:4px;margin-bottom:12px;">Observations (${obs.length})</h3>
+
+        ${obsWithPhotos.map((o,i) => {
+          const catLabel = o.Categorie === 'Autre' && o.CategorieCustom ? o.CategorieCustom : (o.Categorie||'');
+          const urg = URGENCES.find(x=>x.value===o.Urgence)||URGENCES[2];
+          return `
+            <div style="margin-bottom:16px;padding:12px;border:1px solid #dee2e6;border-radius:6px;${i>0?'page-break-inside:avoid;':''}">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <strong style="color:#153D8A;">${i+1}. ${catLabel}</strong>
+                <span style="background:${urg.color};color:#fff;padding:2px 8px;border-radius:10px;font-size:12px;">${urg.emoji} ${urg.label}</span>
+              </div>
+              <p style="margin:0 0 6px;">${(o.Description||'').replace(/\n/g,'<br>')}</p>
+              ${o.Action && o.Action!=='Aucune action' ? `<div style="color:#555;font-size:12px;">⚡ ${o.Action}${o.ActionCommentaire?' — '+o.ActionCommentaire:''}</div>` : ''}
+              ${o.photosB64.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${o.photosB64.map(b=>`<img src="${b}" style="height:120px;border-radius:4px;object-fit:cover;">`).join('')}</div>` : ''}
+            </div>`;
+        }).join('')}
+
+        <div style="margin-top:30px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:10px;">
+          Laforêt Montauban — Rapport généré le ${new Date().toLocaleDateString('fr-FR')}
+        </div>
+      </div>`;
+
+    const container = document.getElementById('pdf-content');
+    container.innerHTML = html;
+    container.style.display = 'block';
+
+    const fileName = `Visite_${(v.CoproprieteNom||'').replace(/[^a-z0-9]/gi,'_')}_${v.DateVisite||''}.pdf`;
+
+    await html2pdf().set({
+      margin: 10,
+      filename: fileName,
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all','css'] }
+    }).from(container).save();
+
+    container.style.display = 'none';
+    container.innerHTML = '';
+    toast('PDF généré : '+fileName);
+  } catch(e) { toast('Erreur PDF: '+e.message,'danger'); console.error(e); }
+  finally { showLoading(false); }
+}
+
+// ════════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════════
+(async () => {
+  await initMsal();
+  showLoading(false);
+
+  if (account) {
+    await bootApp();
+  } else {
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('btn-login').addEventListener('click', async () => {
+      try {
+        showLoading();
+        const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+        account = resp.account;
+        document.getElementById('login-page').style.display = 'none';
+        await bootApp();
+      } catch(e) { toast('Connexion échouée: '+e.message,'danger'); showLoading(false); }
+    });
+  }
+})();
+
+async function bootApp() {
+  showLoading();
+  try {
+    await resolveSite();
+    document.getElementById('app').style.display = '';
+    // Preload data
+    const [cpItems, viItems] = await Promise.all([spList('VS_Coproprietes'), spList('VS_Visites')]);
+    allCopros  = cpItems.map(i => ({ id: i.id, ...i.fields }));
+    allVisites = viItems.map(i => ({ id: i.id, ...i.fields }));
+    showPage('dashboard');
+    // Render stats without extra fetch
+    const now = new Date();
+    document.getElementById('stat-cp').textContent       = allCopros.filter(c => c.Actif !== false).length;
+    document.getElementById('stat-en-cours').textContent  = allVisites.filter(v => v.Statut === 'brouillon').length;
+    document.getElementById('stat-cloturees').textContent = allVisites.filter(v => {
+      if (v.Statut !== 'cloture' || !v.DateVisite) return false;
+      const d = new Date(v.DateVisite);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
+    const recent = [...allVisites].sort((a,b)=>(b.DateVisite||'').localeCompare(a.DateVisite||'')).slice(0,5);
+    document.getElementById('dash-visites-tbody').innerHTML = recent.length
+      ? recent.map(v=>`<tr>
+          <td>${v.CoproprieteNom||'—'}</td><td>${formatDate(v.DateVisite)}</td>
+          <td>${v.Redacteur||'—'}</td><td>${statutBadge(v.Statut)}</td>
+          <td><button class="btn btn-sm btn-outline-primary py-0" onclick="openVisiteDetail('${v.id}')"><i class="bi bi-eye"></i></button></td>
+        </tr>`).join('')
+      : '<tr><td colspan="5" class="text-center text-muted">Aucune visite</td></tr>';
+  } catch(e) { toast('Erreur démarrage: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+</script>
+</body>
+</html>
+
+
