@@ -890,8 +890,11 @@ async function openVisiteDetail(visiteId) {
 
 // ── Cat chips ────────────────────────────────────────────────
 function renderCatChips() {
+  // Catégories comme "Cage d'escalier" contiennent une apostrophe : il faut
+  // l'échapper dans l'attribut onclick, sinon le handler inline est cassé
+  // et le clic sur ce chip ne sélectionne rien (silencieusement).
   document.getElementById('cat-chips').innerHTML = CATEGORIES.map(c => `
-    <span class="chip ${selectedCat === c ? 'selected-cat' : ''}" onclick="selectCat('${c}')">${c}</span>`).join('');
+    <span class="chip ${selectedCat === c ? 'selected-cat' : ''}" onclick="selectCat('${c.replace(/'/g, "\\'")}')">${c}</span>`).join('');
 }
 
 function selectCat(c) {
@@ -1111,6 +1114,17 @@ async function exportPDF() {
     const container = document.getElementById('pdf-content');
     container.innerHTML = html;
     container.style.display = 'block';
+
+    // html2canvas capture le DOM tel qu'il est peint : sans attendre ici,
+    // la capture peut partir avant que le navigateur ait mis en page le
+    // contenu injecté → PDF vierge. setTimeout (pas requestAnimationFrame,
+    // qui ne se déclenche jamais si l'onglet Teams passe en arrière-plan)
+    // laisse le temps au navigateur de peindre avant la capture.
+    await new Promise(r => setTimeout(r, 150));
+    await Promise.all(
+      Array.from(container.querySelectorAll('img')).map(img =>
+        img.decode ? img.decode().catch(() => {}) : Promise.resolve())
+    );
 
     const fileName = `Visite_${(v.CoproprieteNom||'').replace(/[^a-z0-9]/gi,'_')}_${v.DateVisite||''}.pdf`;
 
