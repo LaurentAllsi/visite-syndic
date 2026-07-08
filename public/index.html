@@ -391,7 +391,7 @@ let msalInstance, account, siteId;
 const IN_IFRAME = window.parent !== window;
 let TEAMS_TOKEN = null;
 
-const AUTH_START_URL = window.location.origin + '/auth-start.html';
+const AUTH_START_URL = window.location.origin + '/auth-start';
 
 async function teamsAuthenticate() {
   const token = await window.microsoftTeams.authentication.authenticate({
