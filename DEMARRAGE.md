@@ -59,11 +59,11 @@ cloisonnement.
 
 ## Fichiers legacy conservés en dépôt (non déployés, non exposés)
 
-- **Ancienne appli Flask** (`app.py`, `templates/`, `Procfile`, `render.yaml`,
-  `requirements.txt`, `data/`) — Render mort, plus utilisée. **Toujours
-  présente dans le dépôt** (contrairement à Facturation où elle a été
-  supprimée) : la décision de suppression a été posée à l'utilisateur le
-  2026-07-08 mais est restée sans réponse. À trancher.
+L'ancienne version Flask (`app.py`, `templates/`, `Procfile`, `render.yaml`,
+`requirements.txt`, `data/`), hébergée sur Render.com, a été **supprimée du
+dépôt le 2026-07-08** (Render mort, plus utilisée). Récupérable dans
+l'historique Git si besoin.
+
 - `setup.html`, `import.html` : outils d'amorçage SharePoint déjà exécutés,
   gardés en référence. Ne pas relancer sans vérifier l'état des listes.
 - `teams_app/manifest.json` + `VisteSyndic-Teams.zip` : package Teams
