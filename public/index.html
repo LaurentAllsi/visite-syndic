@@ -6,7 +6,8 @@
   <title>Visite Syndic — Laforêt Montauban</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+  <script src="https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     :root { --blue:#153D8A; --cyan:#009EE3; }
@@ -73,6 +74,23 @@
   </style>
 </head>
 <body>
+<script>
+(function() {
+  var attempts = 0;
+  function tryInit() {
+    attempts++;
+    if (window.microsoftTeams && window.microsoftTeams.app && typeof window.microsoftTeams.app.initialize === 'function') {
+      window.microsoftTeams.app.initialize().then(function() {
+        try { window.microsoftTeams.app.notifySuccess(); } catch(e) {}
+        window.__teamsInitialized = true;
+      }).catch(function() {});
+    } else if (attempts < 40) {
+      setTimeout(tryInit, 25);
+    }
+  }
+  tryInit();
+})();
+</script>
 
 <!-- LOADING -->
 <div id="loading-overlay">
@@ -370,6 +388,23 @@ const ACTIONS = [
 // STATE
 // ════════════════════════════════════════════════════════════
 let msalInstance, account, siteId;
+const IN_IFRAME = window.parent !== window;
+let TEAMS_TOKEN = null;
+
+const AUTH_START_URL = window.location.origin + '/auth-start.html';
+
+async function teamsAuthenticate() {
+  const token = await window.microsoftTeams.authentication.authenticate({
+    url: AUTH_START_URL,
+    width: 600,
+    height: 535
+  });
+  TEAMS_TOKEN = token;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return { name: payload.name || payload.preferred_username || 'Utilisateur', username: payload.upn || payload.preferred_username || '' };
+  } catch { return { name: 'Utilisateur', username: '' }; }
+}
 let allCopros = [], allVisites = [], currentVisiteId = null;
 let selectedCat = null, selectedUrg = 'info';
 
@@ -377,7 +412,7 @@ let selectedCat = null, selectedUrg = 'info';
 // MSAL
 // ════════════════════════════════════════════════════════════
 const msalConfig = {
-  auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin + window.location.pathname },
+  auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin },
   cache: { cacheLocation: 'localStorage' }
 };
 
@@ -393,19 +428,31 @@ async function initMsal() {
 }
 
 async function getToken() {
+  if (TEAMS_TOKEN) return TEAMS_TOKEN;
   try {
     const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
     return r.accessToken;
   } catch {
-    const r = await msalInstance.acquireTokenPopup({ scopes: SCOPES });
-    account = r.account;
-    return r.accessToken;
+    if (IN_IFRAME) {
+      const acc = await teamsAuthenticate();
+      account = acc;
+      return TEAMS_TOKEN;
+    } else {
+      await msalInstance.acquireTokenRedirect({ scopes: SCOPES });
+      return null;
+    }
   }
 }
 
 function logout() {
-  msalInstance.logoutPopup().catch(() => {});
-  location.reload();
+  if (IN_IFRAME) {
+    TEAMS_TOKEN = null;
+    account = null;
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-page').style.display = 'flex';
+  } else {
+    msalInstance.logoutRedirect();
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -508,6 +555,35 @@ function toast(msg, type='success') {
   el.className = `toast align-items-center border-0 text-bg-${type}`;
   document.getElementById('toast-msg').textContent = msg;
   bootstrap.Toast.getOrCreateInstance(el, { delay: 3000 }).show();
+}
+
+// window.confirm() est bloqué/ignoré silencieusement dans le webview Teams
+// (comme window.open pour les popups d'auth) — on utilise une modale maison.
+function confirmModal(message, title = 'Confirmation') {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+          <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">${title}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><p class="mb-0">${message}</p></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button type="button" class="btn btn-danger" id="confirmModalOk">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const el = wrap.firstElementChild;
+    document.body.appendChild(el);
+    const modal = new bootstrap.Modal(el);
+    let resolved = false;
+    const finish = (val) => { if (resolved) return; resolved = true; resolve(val); };
+    el.querySelector('#confirmModalOk').addEventListener('click', () => { finish(true); modal.hide(); });
+    el.addEventListener('hidden.bs.modal', () => { finish(false); el.remove(); });
+    modal.show();
+  });
 }
 
 function formatDate(s) {
@@ -627,7 +703,7 @@ async function saveCp() {
 }
 
 async function deleteCp(id) {
-  if (!confirm('Supprimer cette copropriété ?')) return;
+  if (!await confirmModal('Supprimer cette copropriété ?')) return;
   try { showLoading(); await spDelete('VS_Coproprietes', id); toast('Supprimée'); await loadCopros(); }
   catch(e) { toast('Erreur: '+e.message,'danger'); }
   finally { showLoading(false); }
@@ -746,7 +822,7 @@ async function createVisite() {
 }
 
 async function deleteVisite(id) {
-  if (!confirm('Supprimer cette visite et toutes ses observations ?')) return;
+  if (!await confirmModal('Supprimer cette visite et toutes ses observations ?')) return;
   showLoading();
   try {
     const obs = await spList('VS_Observations', `VisiteId eq '${id}'`);
@@ -921,7 +997,7 @@ async function saveObservation() {
 }
 
 async function deleteObs(obsId) {
-  if (!confirm('Supprimer cette observation ?')) return;
+  if (!await confirmModal('Supprimer cette observation ?')) return;
   showLoading();
   try { await spDelete('VS_Observations', obsId); await loadObservationList(currentVisiteId); toast('Observation supprimée'); }
   catch(e) { toast('Erreur: '+e.message,'danger'); }
@@ -948,7 +1024,7 @@ async function cloturer() {
 }
 
 async function reouvrir() {
-  if (!confirm('Réouvrir cette visite en brouillon ?')) return;
+  if (!await confirmModal('Réouvrir cette visite en brouillon ?')) return;
   showLoading();
   try {
     await spUpdate('VS_Visites', currentVisiteId, { Statut:'brouillon' });
@@ -1057,7 +1133,31 @@ async function exportPDF() {
 // BOOT
 // ════════════════════════════════════════════════════════════
 (async () => {
-  await initMsal();
+  if (IN_IFRAME) {
+    // Teams : pas d'initMsal, login via bouton Teams
+    showLoading(false);
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('btn-login').addEventListener('click', async () => {
+      try {
+        showLoading();
+        const acc = await teamsAuthenticate();
+        account = acc;
+        document.getElementById('login-page').style.display = 'none';
+        await bootApp();
+      } catch(e) { toast('Connexion échouée: '+e.message,'danger'); showLoading(false); }
+    });
+    return;
+  }
+
+  try {
+    await initMsal();
+  } catch(e) {
+    console.error('MSAL init error:', e);
+    showLoading(false);
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('login-page').innerHTML += `<div class="alert alert-danger mt-2">Erreur initialisation : ${e.message}</div>`;
+    return;
+  }
   showLoading(false);
 
   if (account) {
@@ -1067,10 +1167,7 @@ async function exportPDF() {
     document.getElementById('btn-login').addEventListener('click', async () => {
       try {
         showLoading();
-        const resp = await msalInstance.loginPopup({ scopes: SCOPES });
-        account = resp.account;
-        document.getElementById('login-page').style.display = 'none';
-        await bootApp();
+        await msalInstance.loginRedirect({ scopes: SCOPES });
       } catch(e) { toast('Connexion échouée: '+e.message,'danger'); showLoading(false); }
     });
   }

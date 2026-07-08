@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script>
+(async () => {
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js';
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
+  await microsoftTeams.app.initialize();
+
+  const CLIENT_ID = '6b5a2aa5-cc80-4dba-8232-badc227b5996';
+  const TENANT_ID = '9b6f0a5e-fd44-4a3f-a1de-430911fda398';
+  const REDIRECT   = 'https://famous-peony-ac78d2.netlify.app/auth-end.html';
+
+  try {
+    const params    = new URLSearchParams(window.location.search);
+    const code      = params.get('code');
+    const error     = params.get('error');
+    const errorDesc = params.get('error_description');
+
+    if (error) { microsoftTeams.authentication.notifyFailure(errorDesc || error); return; }
+    if (!code)  { microsoftTeams.authentication.notifyFailure('Aucun code reçu'); return; }
+
+    const verifier = sessionStorage.getItem('pkce_verifier');
+    if (!verifier) { microsoftTeams.authentication.notifyFailure('PKCE verifier manquant'); return; }
+
+    const tokenRes = await fetch(
+      `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id:     CLIENT_ID,
+          grant_type:    'authorization_code',
+          code:          code,
+          redirect_uri:  REDIRECT,
+          code_verifier: verifier,
+          scope:         'https://graph.microsoft.com/Sites.ReadWrite.All https://graph.microsoft.com/Files.ReadWrite.All openid profile'
+        })
+      }
+    );
+
+    const tokenData = await tokenRes.json();
+    if (tokenData.access_token) {
+      microsoftTeams.authentication.notifySuccess(tokenData.access_token);
+    } else {
+      microsoftTeams.authentication.notifyFailure(tokenData.error_description || 'Token non reçu');
+    }
+  } catch(e) {
+    microsoftTeams.authentication.notifyFailure(e.message);
+  }
+})();
+</script>
+</body>
+</html>

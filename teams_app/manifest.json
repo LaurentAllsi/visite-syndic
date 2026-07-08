@@ -1,14 +1,14 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "id": "a3f72c14-8b5e-4d29-9f1a-6c8e3b702d55",
   "packageName": "com.laforet.montauban.visite",
   "developer": {
     "name": "Laforet Montauban Allsimmo",
-    "websiteUrl": "https://visite-syndic.onrender.com",
-    "privacyUrl": "https://visite-syndic.onrender.com/login",
-    "termsOfUseUrl": "https://visite-syndic.onrender.com/login"
+    "websiteUrl": "https://famous-peony-ac78d2.netlify.app",
+    "privacyUrl": "https://famous-peony-ac78d2.netlify.app",
+    "termsOfUseUrl": "https://famous-peony-ac78d2.netlify.app"
   },
   "icons": {
     "color": "color.png",
@@ -27,13 +27,13 @@
     {
       "entityId": "visite-home",
       "name": "Visites",
-      "contentUrl": "https://visite-syndic.onrender.com",
-      "websiteUrl": "https://visite-syndic.onrender.com",
+      "contentUrl": "https://famous-peony-ac78d2.netlify.app",
+      "websiteUrl": "https://famous-peony-ac78d2.netlify.app",
       "scopes": ["personal"]
     }
   ],
   "permissions": ["identity"],
   "validDomains": [
-    "visite-syndic.onrender.com"
+    "famous-peony-ac78d2.netlify.app"
   ]
 }

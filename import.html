@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import — Visite Syndic</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js"></script>
+  <style>
+    body { background: #f0f4fb; font-family: 'Segoe UI', sans-serif; }
+    .brand { background: #153D8A; color: #fff; padding: 1.5rem 2rem; }
+    .brand span { color: #009EE3; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(21,61,138,.10); }
+    .btn-laforet { background: #153D8A; color: #fff; border: none; }
+    .btn-laforet:hover { background: #009EE3; color: #fff; }
+    pre { background: #1e1e1e; color: #d4d4d4; border-radius: 8px; font-size: .8rem; max-height: 400px; overflow-y: auto; padding: 1rem; }
+  </style>
+</head>
+<body>
+<div class="brand mb-4">
+  <h4 class="mb-0">Laforêt Montauban &mdash; <span>Visite Syndic</span> &mdash; Import</h4>
+  <small class="opacity-75">Import des 44 copropriétés (à exécuter une seule fois)</small>
+</div>
+
+<div class="container" style="max-width:700px">
+  <div id="login-section" class="card p-4 mb-4">
+    <h5 class="mb-3">Étape 1 — Connexion</h5>
+    <button id="btn-login" class="btn btn-laforet">🔐 Se connecter avec Microsoft</button>
+    <div id="user-info" class="mt-3 d-none alert alert-success mb-0"></div>
+  </div>
+
+  <div id="import-section" class="card p-4 mb-4 d-none">
+    <h5 class="mb-3">Étape 2 — Import des copropriétés</h5>
+    <p class="text-muted small">Importe 44 copropriétés dans <code>VS_Coproprietes</code>. Les doublons sont ignorés.</p>
+    <div id="progress"></div>
+    <button id="btn-run" class="btn btn-laforet mt-3">▶ Lancer l'import</button>
+  </div>
+
+  <div id="log-section" class="card p-4 d-none">
+    <h5 class="mb-3">Journal</h5>
+    <pre id="log-pre"></pre>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = '6b5a2aa5-cc80-4dba-8232-badc227b5996';
+const TENANT_ID = '9b6f0a5e-fd44-4a3f-a1de-430911fda398';
+const SITE_HOST  = 'allsimmo.sharepoint.com';
+const SITE_PATH  = '/sites/ALLSIMMO-Syndic';
+const SCOPES     = ['https://graph.microsoft.com/Sites.Manage.All'];
+
+const msalConfig = {
+  auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.origin + window.location.pathname },
+  cache: { cacheLocation: 'localStorage' }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let account = null, siteId = null;
+
+msalInstance.initialize().then(() => {
+  msalInstance.handleRedirectPromise().then(resp => {
+    if (resp) { account = resp.account; showLoggedIn(); }
+    else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length) { account = accounts[0]; showLoggedIn(); }
+    }
+  });
+});
+
+document.getElementById('btn-login').addEventListener('click', async () => {
+  await msalInstance.initialize();
+  await msalInstance.loginRedirect({ scopes: SCOPES });
+});
+
+function showLoggedIn() {
+  document.getElementById('user-info').textContent = `Connecté : ${account.name} (${account.username})`;
+  document.getElementById('user-info').classList.remove('d-none');
+  document.getElementById('import-section').classList.remove('d-none');
+}
+
+async function getToken() {
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return r.accessToken;
+  } catch {
+    await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account });
+    return null;
+  }
+}
+
+async function graph(method, url, body) {
+  const token = await getToken();
+  const opts = { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(`https://graph.microsoft.com/v1.0${url}`, opts);
+  if (!r.ok) { const txt = await r.text(); throw new Error(`${method} ${url} → ${r.status}: ${txt}`); }
+  return r.status === 204 ? null : r.json();
+}
+
+async function getItems(listName) {
+  let items = [], url = `/sites/${siteId}/lists/${listName}/items?$expand=fields&$top=100`;
+  while (url) {
+    const r = await graph('GET', url);
+    items = items.concat(r.value);
+    url = r['@odata.nextLink'] || null;
+  }
+  return items;
+}
+
+const logEl = document.getElementById('log-pre');
+function log(msg) {
+  logEl.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+  document.getElementById('log-section').classList.remove('d-none');
+}
+
+function setProgress(msg) {
+  document.getElementById('progress').innerHTML = `<div class="alert alert-info mb-0">${msg}</div>`;
+}
+
+const COPROPRIETES = [
+  { nom: "1000 - 54 Delcasse", adresse: "54 rue Delcasse - 82000 - MONTAUBAN" },
+  { nom: "1004 - 2/4 RUE DU FORT", adresse: "2 RUE DU FORT - 82000 - MONTAUBAN" },
+  { nom: "1005 - JARDINS DE L'ARSENAL V1 a 33", adresse: "4 rue du Docteur Labat - 82000 - MONTAUBAN" },
+  { nom: "1006 - 1 rue de la banque", adresse: "85 faubourg lacapelle - 82000 - MONTAUBAN" },
+  { nom: "1007 - SDC 31 DELCASSE", adresse: "31 RUE DELCASSE - 82000 - MONTAUBAN" },
+  { nom: "1008 - LE PRADEL", adresse: "600 rue Alsace Lorraine - 82000 - MONTAUBAN" },
+  { nom: "1009 - RESID JARDINS ARSENAL D", adresse: "4 rue du Docteur Labat - 82000 - MONTAUBAN" },
+  { nom: "1010 - HELIOS", adresse: "22 RUE LAKANAL - 82000 - MONTAUBAN" },
+  { nom: "1011 - SDC 49 DELCASSE", adresse: "49 RUE DELCASSE - 82000 - MONTAUBAN" },
+  { nom: "1012 - LA CERISAIE", adresse: "24 Rue Emile Pouvillon - 82000 - MONTAUBAN" },
+  { nom: "1013 - TOUR DE RONDE", adresse: "16, 18 et 18bis rue Tour de Ronde - 82700 - ESCATALENS" },
+  { nom: "1014 - AMERICA", adresse: "1 IMPASSE DU PETIT TRAIN - 31620 - FRONTON" },
+  { nom: "1015 - LES JARDINS DE L ARSENAL E", adresse: "1 RUE COMBATTANTS D INDOCHINE - 82000 - MONTAUBAN" },
+  { nom: "1016 - ALSACE LORRAINE", adresse: "311-361 RUE ALSACE LORRAINE - 82000 - MONTAUBAN" },
+  { nom: "1017 - MONTESQUIEU", adresse: "AVENUE DU PERE LEONID CHROLL - 82000 - MONTAUBAN" },
+  { nom: "1018 - PLACE DU SOUVENIR", adresse: "17 Place du Souvenir - 31340 - VILLEMUR SUR TARN" },
+  { nom: "1019 - VILLA DES JARDINS", adresse: "2 RUE HENRI BARBUSSE - 82000 - MONTAUBAN" },
+  { nom: "1020 - SEVILLE", adresse: "33 RUE PIERRE CONTRASTY - 31620 - FRONTON" },
+  { nom: "1021 - ALEXANDRE 1ER BAT 3", adresse: "2-4 RUE DENFERT ROCHEREAU - 82000 - MONTAUBAN" },
+  { nom: "1022 - VIALETES D AIGNAN", adresse: "14 RUE DE LA COMEDIE - 82000 - MONTAUBAN" },
+  { nom: "1023 - BAS QUERCY", adresse: "19 RUE DENFERT ROCHEREAU - 82000 - MONTAUBAN" },
+  { nom: "1024 - SDC HOTEL DE VILLE", adresse: "2/4 RUE DE L HOTEL DE VILLE - 82000 - MONTAUBAN" },
+  { nom: "1025 - LES CERISIERS", adresse: "2046 ROUTE D AUCAMVILLE - 31330 - SAINT CEZERT" },
+  { nom: "1026 - SDC 11 RUE MICHELET", adresse: "11 RUE MICHELET - 82000 - MONTAUBAN" },
+  { nom: "1027 - 31 FAUBOURG LACAPELLE", adresse: "31 FAUBOURG LACAPELLE - 82000 - MONTAUBAN" },
+  { nom: "1028 - LES POMMIERS", adresse: "2046 ROUTE D'AUCAMVILLE - 31330 - SAINT CEZERT" },
+  { nom: "1029 - LE MONTAURIOL", adresse: "300 ROUTE DE L AVEYRON - 82000 - MONTAUBAN" },
+  { nom: "1030 - MANET", adresse: "31 RUE INGRES - 82000 - MONTAUBAN" },
+  { nom: "1032 - SDC LE PARC DU CEDRE", adresse: "10 RUE JEAN DOUMERC - 82000 - MONTAUBAN" },
+  { nom: "1033 - SAINT GEORGES", adresse: "RUE DES NAUZES - 82170 - GRISOLLES" },
+  { nom: "1034 - 71 GRANDE RUE SAPIAC", adresse: "71 GRANDE RUE SAPIAC - 82000 - MONTAUBAN" },
+  { nom: "1035 - ARTEL 2L", adresse: "ZI artel ouest - 82100 - CASTELSARRASIN" },
+  { nom: "1036 - 74 REPUBLIQUE", adresse: "74 RUE DE LA REPUBLIQUE - 82000 - MONTAUBAN" },
+  { nom: "1037 - MARGUERITE DE NAVARRE", adresse: "12 RUE ARMAND CAMBON - 82000 - MONTAUBAN" },
+  { nom: "1038 - LES LOUISETTES", adresse: "4 RUE DU 8 MAI 1945 - 82370 - CORBARIEU" },
+  { nom: "1039 - ASL DOMAINE DE LA MOTHE", adresse: "2046 ROUTE D AUCAMVILLE - 31330 - SAINT CEZERT" },
+  { nom: "1040 - LE NOISETIER LE PIN", adresse: "2046 ROUTE D AUCAMVILLE - 31330 - SAINT CEZERT" },
+  { nom: "1041 - ALEXANDRE 1ER BAT 5", adresse: "5 BLD GUSTAVE GARRISSON - 82000 - MONTAUBAN" },
+  { nom: "1042 - 5 RUE DES CARMES", adresse: "5 RUE DES CARMES - 82000 - MONTAUBAN" },
+  { nom: "1043 - PLEIN SUD", adresse: "17 BOULEVARD GUSTAVE GARRISSON - 82000 - MONTAUBAN" },
+  { nom: "1044 - VENISE", adresse: "2 rue de Venise - 82000 - MONTAUBAN" },
+  { nom: "1045 - COTTAGE DES LORIOTS", adresse: "6 rue Pierre Perret - 82800 - NEGREPELISSE" },
+  { nom: "1066 - 1bis rue Leon De Maleville", adresse: "1bis rue Leon De Maleville - 82000 - MONTAUBAN" },
+  { nom: "1083 - LE CLOS MAURY", adresse: "12 a 16 Rue Francois Cevert - 82000 - MONTAUBAN" }
+];
+
+document.getElementById('btn-run').addEventListener('click', async () => {
+  document.getElementById('btn-run').disabled = true;
+  try {
+    setProgress('Résolution du site SharePoint...');
+    const siteRes = await graph('GET', `/sites/${SITE_HOST}:${SITE_PATH}`);
+    siteId = siteRes.id;
+    log(`Site résolu : ${siteId}`);
+
+    setProgress('Récupération des copropriétés existantes...');
+    const existing = await getItems('VS_Coproprietes');
+    const existingNames = new Set(existing.map(i => i.fields.Title));
+    log(`${existingNames.size} copropriété(s) déjà présente(s).`);
+
+    const toCreate = COPROPRIETES.filter(c => !existingNames.has(c.nom));
+    log(`${toCreate.length} à créer.`);
+
+    let created = 0;
+    for (const c of toCreate) {
+      setProgress(`Création ${c.nom}...`);
+      await graph('POST', `/sites/${siteId}/lists/VS_Coproprietes/items`, {
+        fields: { Title: c.nom, Adresse: c.adresse, Actif: true }
+      });
+      log(`  ✔ ${c.nom}`);
+      created++;
+    }
+
+    setProgress('');
+    document.getElementById('progress').innerHTML = `<div class="alert alert-success mb-0"><strong>✅ Import terminé !</strong> ${created} copropriété(s) créée(s), ${existingNames.size} déjà présente(s). <a href="index.html" class="alert-link">Ouvrir l'application →</a></div>`;
+  } catch(e) {
+    log(`ERREUR : ${e.message}`);
+    document.getElementById('progress').innerHTML = `<div class="alert alert-danger mb-0">Erreur : ${e.message}</div>`;
+  }
+  document.getElementById('btn-run').disabled = false;
+});
+</script>
+</body>
+</html>
