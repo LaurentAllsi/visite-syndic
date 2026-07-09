@@ -825,7 +825,7 @@ async function deleteVisite(id) {
   if (!await confirmModal('Supprimer cette visite et toutes ses observations ?')) return;
   showLoading();
   try {
-    const obs = await spList('VS_Observations', `VisiteId eq '${id}'`);
+    const obs = await getObservationsForVisite(id);
     for (const o of obs) await spDelete('VS_Observations', o.id);
     await spDelete('VS_Visites', id);
     toast('Visite supprimée');
@@ -918,9 +918,17 @@ function selectUrg(v) { selectedUrg = v; renderUrgChips(); }
 // ════════════════════════════════════════════════════════════
 // OBSERVATIONS
 // ════════════════════════════════════════════════════════════
+// Le filtre serveur $filter=VisiteId eq '...' retourne 0 résultat côté
+// SharePoint (probablement une colonne Lookup, qui n'accepte pas ce filtre
+// direct) : on récupère toutes les observations et on filtre côté client.
+async function getObservationsForVisite(visiteId) {
+  const items = await spList('VS_Observations');
+  return items.filter(i => String(i.fields.VisiteId) === String(visiteId));
+}
+
 async function loadObservationList(visiteId) {
   try {
-    const items = await spList('VS_Observations', `VisiteId eq '${visiteId}'`);
+    const items = await getObservationsForVisite(visiteId);
     const obs = items.map(i => ({ id: i.id, ...i.fields })).sort((a,b) => (a.Ordre||0)-(b.Ordre||0));
     const v = allVisites.find(x => x.id === visiteId);
     const isBrouillon = v?.Statut === 'brouillon';
@@ -958,7 +966,7 @@ async function saveObservation() {
   const catCustom = selectedCat === 'Autre' ? document.getElementById('obs-cat-custom').value.trim() : '';
 
   // Get current max order
-  const existing = await spList('VS_Observations', `VisiteId eq '${currentVisiteId}'`);
+  const existing = await getObservationsForVisite(currentVisiteId);
   const nextOrdre = existing.length + 1;
 
   const fields = {
@@ -1063,7 +1071,7 @@ async function exportPDF() {
   toast('Génération du PDF en cours…','info');
 
   try {
-    const obsItems = await spList('VS_Observations', `VisiteId eq '${currentVisiteId}'`);
+    const obsItems = await getObservationsForVisite(currentVisiteId);
     const obs = obsItems.map(i => ({ id: i.id, ...i.fields })).sort((a,b)=>(a.Ordre||0)-(b.Ordre||0));
 
     // Download photos for each obs
