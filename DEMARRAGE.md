@@ -14,6 +14,15 @@ SPA statique 100 % front-end : `public/index.html`. Parle directement à
   (même site que Facturation)
 - Listes : `VS_Coproprietes`, `VS_Visites`, `VS_Observations`
 - Photos : dossier `Visite-Photos/<visiteId>/<obsId>/` dans le drive du site
+- ⚠️ **`VS_Observations.VisiteId` ne supporte pas le filtre OData
+  `$filter=VisiteId eq '...'`** (probablement une colonne Lookup côté
+  SharePoint) — la requête réussit mais retourne toujours 0 résultat, sans
+  erreur. Toute récupération d'observations doit passer par
+  `getObservationsForVisite(visiteId)` (fetch complet de la liste + filtre
+  côté client), jamais par un `$filter` direct sur ce champ. Bug découvert
+  et corrigé le 2026-07-08 : il causait un `Ordre` toujours à 1 et un PDF
+  systématiquement vide d'observations, malgré une création réussie à
+  chaque fois (toast "enregistrée" trompeur).
 - Auth Azure AD : client ID `6b5a2aa5-cc80-4dba-8232-badc227b5996` (app
   "Visite Syndic", différente de celle de Facturation), même tenant
   `9b6f0a5e-fd44-4a3f-a1de-430911fda398`. Client public (SPA + PKCE).
