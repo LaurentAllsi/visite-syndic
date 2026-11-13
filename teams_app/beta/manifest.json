@@ -1,0 +1,43 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "0.1.0",
+  "id": "c20279e0-24ab-4001-a4e1-a17da5cf9dc5",
+  "packageName": "com.laforet.montauban.visite.beta",
+  "developer": {
+    "name": "Laforet Montauban Allsimmo",
+    "websiteUrl": "https://visite-syndic.pages.dev",
+    "privacyUrl": "https://visite-syndic.pages.dev",
+    "termsOfUseUrl": "https://visite-syndic.pages.dev"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Visite Syndic BETA",
+    "full": "Visite Syndic BETA Laforet Montauban"
+  },
+  "description": {
+    "short": "Version de test - visites syndic",
+    "full": "Saisie et centralisation des rapports de visites d'immeubles — syndic Laforet Montauban"
+  },
+  "accentColor": "#153D8A",
+  "staticTabs": [
+    {
+      "entityId": "visite-beta-home",
+      "name": "Visites BETA",
+      "contentUrl": "https://visite-syndic.pages.dev/beta/",
+      "websiteUrl": "https://visite-syndic.pages.dev/beta/",
+      "scopes": [
+        "personal"
+      ]
+    }
+  ],
+  "permissions": [
+    "identity"
+  ],
+  "validDomains": [
+    "visite-syndic.pages.dev"
+  ]
+}
