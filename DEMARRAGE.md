@@ -81,3 +81,31 @@ l'historique Git si besoin.
   (`Compress-Archive` PowerShell) et de le ré-uploader dans le Centre
   d'administration Teams — Teams peut mettre du temps à propager la mise à
   jour d'une app déjà installée (désinstaller/réinstaller au besoin).
+
+## Évolution du 2026-11-13 — saisie mobile + modification des observations
+
+Mise en production après une phase beta vérifiée sur le vrai SharePoint :
+
+- En-tête de visite compact (une ligne sur téléphone, détail dépliable).
+- Phrases types par catégorie (constante `PHRASES`) et reprise des
+  observations des visites précédentes de la même copropriété.
+- Bouton « Dicter » (affiché seulement si le navigateur/webview propose la
+  reconnaissance vocale).
+- Photos : boutons « Appareil photo » et « Galerie », aperçu avant envoi,
+  réduction à 1600 px (`shrinkImage`), nom de fichier unique (sur téléphone
+  chaque photo s'appelle `image.jpg` et écrasait la précédente).
+- Modification d'une observation enregistrée (textes, photos, ordre) et des
+  informations de la visite — uniquement si la visite est en cours ; une
+  visite clôturée doit d'abord être réouverte.
+- La reclôture conserve l'heure de fin et les notes globales (elles étaient
+  effacées auparavant).
+
+Les formulaires d'ajout et de modification partagent les mêmes champs,
+générés par `formFieldsHTML(p)` avec `p = 'add'` ou `'edit'`.
+
+**Beta** : `public/beta/index.html` (`https://visite-syndic.pages.dev/beta/`)
+est une copie de l'application portant un badge BETA, à utiliser pour tester
+une future évolution avant de la recopier dans `public/index.html`. Elle
+travaille sur les données réelles et ne demande aucun réglage Azure (elle
+réutilise `/auth-start` et `/auth-end` à la racine). Package Teams séparé
+dans `teams_app/beta/`.

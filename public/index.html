@@ -69,6 +69,45 @@
       .container-main { padding:0 .5rem; }
     }
 
+    /* ═══ BETA ═══ */
+    .beta-badge { background:#fd7e14; color:#fff; font-size:.65rem; padding:.15rem .45rem; border-radius:6px;
+                  vertical-align:middle; margin-left:.4rem; letter-spacing:.05em; }
+
+    /* En-tête de visite compact */
+    .meta-compact { display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; font-size:.88rem; }
+    .meta-compact .meta-line { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+    .meta-more { display:none; }
+    #detail-meta.open .meta-more { display:block; }
+    #detail-meta.open .meta-toggle i { transform:rotate(180deg); }
+
+    /* Phrases types */
+    .phrase-chip { display:inline-block; padding:.35rem .7rem; border-radius:8px; background:#eaf6fd; color:#0b5c85;
+                   border:1px solid #bfe3f6; font-size:.82rem; cursor:pointer; user-select:none; max-width:100%; }
+    .phrase-chip.hist { background:#f3f0ff; border-color:#d6ccff; color:#4a3aa8; }
+    .phrase-chip:active { filter:brightness(.92); }
+
+    /* Vignettes photo */
+    .photo-thumb { position:relative; display:inline-block; }
+    .photo-thumb img { height:80px; width:80px; border-radius:6px; object-fit:cover; cursor:pointer; }
+    .photo-thumb .del { position:absolute; top:-6px; right:-6px; width:26px; height:26px; border-radius:50%; border:2px solid #fff;
+                        background:#dc3545; color:#fff; font-size:.9rem; line-height:1; padding:0; }
+    .photo-thumb.to-delete img { opacity:.3; }
+    .photo-thumb.to-delete .del { background:#6c757d; }
+
+    .mic-btn.recording { background:#dc3545; border-color:#dc3545; color:#fff; }
+
+    @media(min-width:768px){
+      .meta-more { display:block; }
+      .meta-toggle { display:none; }
+    }
+    @media(max-width:576px){
+      .chip { padding:.5rem .7rem; font-size:.88rem; }
+      .phrase-chip { padding:.5rem .75rem; font-size:.88rem; }
+      /* 16px : évite le zoom automatique d'iOS à la prise de focus */
+      .form-control, .form-select { font-size:16px; }
+      .obs-actions .btn { min-width:40px; min-height:38px; }
+    }
+
     /* PRINT / PDF area — hidden by default */
     #pdf-content { display:none; }
   </style>
@@ -202,37 +241,14 @@
         <button class="btn btn-sm btn-outline-secondary" onclick="showPage('visites')"><i class="bi bi-arrow-left"></i></button>
         <h5 class="fw-bold mb-0" style="color:var(--blue)" id="detail-title">Visite</h5>
       </div>
-      <div id="detail-meta" class="card p-3 mb-3"></div>
+      <div id="detail-meta" class="card mb-2"></div>
 
       <!-- Saisie observation (si brouillon) -->
       <div id="obs-saisie-section">
         <div class="card p-3 mb-3">
           <h6 class="fw-semibold mb-3"><i class="bi bi-plus-circle me-1" style="color:var(--cyan)"></i>Ajouter une observation</h6>
 
-          <label class="form-label fw-semibold small">Catégorie</label>
-          <div id="cat-chips" class="d-flex flex-wrap gap-2 mb-3"></div>
-          <input id="obs-cat-custom" class="form-control form-control-sm mb-3 d-none" placeholder="Autre — précisez…">
-
-          <label class="form-label fw-semibold small">Description</label>
-          <textarea id="obs-description" class="form-control mb-3" rows="3" placeholder="Décrivez l'observation…"></textarea>
-
-          <label class="form-label fw-semibold small">Urgence</label>
-          <div class="d-flex gap-2 mb-3" id="urg-chips"></div>
-
-          <label class="form-label fw-semibold small">Action</label>
-          <select id="obs-action" class="form-select mb-3">
-            <option>Aucune action</option>
-            <option>Contacter un prestataire</option>
-            <option>Signaler au conseil syndical</option>
-            <option>Travaux à prévoir</option>
-            <option>À surveiller</option>
-          </select>
-
-          <label class="form-label fw-semibold small">Commentaire action</label>
-          <textarea id="obs-action-comment" class="form-control mb-3" rows="2" placeholder="(optionnel)"></textarea>
-
-          <label class="form-label fw-semibold small">Photos</label>
-          <input type="file" id="obs-photos" class="form-control mb-3" multiple accept="image/*" capture="environment">
+          <div id="add-form-fields"></div>
 
           <button class="btn w-100 fw-semibold" style="background:var(--cyan);color:#fff;" onclick="saveObservation()">
             <i class="bi bi-check-lg me-1"></i>Enregistrer l'observation
@@ -265,6 +281,7 @@
             <button id="btn-pdf" class="btn btn-sm" style="background:var(--blue);color:#fff;" onclick="exportPDF()"><i class="bi bi-file-earmark-pdf me-1"></i>Export PDF</button>
           </div>
         </div>
+        <div id="closed-hint" class="alert alert-light border small py-2 d-none"><i class="bi bi-lock me-1"></i>Visite clôturée : cliquez sur « Réouvrir » pour modifier les observations ou les informations de la visite.</div>
         <div id="obs-list"></div>
       </div>
     </div>
@@ -343,6 +360,49 @@
   </div>
 </div>
 
+<!-- Modifier une observation (beta) -->
+<div class="modal fade" id="obsEditModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--blue);color:#fff;">
+        <h5 class="modal-title">Modifier l'observation</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body"><div id="edit-form-fields"></div></div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn fw-semibold" style="background:var(--cyan);color:#fff;" onclick="saveObsEdit()"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modifier les infos de la visite (beta) -->
+<div class="modal fade" id="visiteEditModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--blue);color:#fff;">
+        <h5 class="modal-title">Informations de la visite</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label" for="ve-date">Date *</label><input type="date" id="ve-date" class="form-control"></div>
+        <div class="row g-2 mb-3">
+          <div class="col-6"><label class="form-label" for="ve-heure-debut">Heure de début</label><input type="time" id="ve-heure-debut" class="form-control"></div>
+          <div class="col-6"><label class="form-label" for="ve-heure-fin">Heure de fin</label><input type="time" id="ve-heure-fin" class="form-control"></div>
+        </div>
+        <div class="mb-3"><label class="form-label" for="ve-redacteur">Rédacteur *</label><input id="ve-redacteur" class="form-control"></div>
+        <div class="mb-3"><label class="form-label" for="ve-presentes">Personnes présentes</label><input id="ve-presentes" class="form-control" placeholder="Noms séparés par des virgules"></div>
+        <div class="mb-1"><label class="form-label" for="ve-notes">Notes globales</label><textarea id="ve-notes" class="form-control" rows="4" placeholder="Synthèse, remarques générales…"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn fw-semibold" style="background:var(--blue);color:#fff;" onclick="saveVisiteEdit()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:9000;">
   <div id="app-toast" class="toast align-items-center border-0" role="alert">
@@ -406,7 +466,28 @@ async function teamsAuthenticate() {
   } catch { return { name: 'Utilisateur', username: '' }; }
 }
 let allCopros = [], allVisites = [], currentVisiteId = null;
-let selectedCat = null, selectedUrg = 'info';
+// Deux formulaires partagent les mêmes champs : 'add' (saisie) et 'edit' (modale de modification)
+const form = {
+  add:  { cat:null, urg:'info', files:[], phr:[], hist:[] },
+  edit: { cat:null, urg:'info', files:[], phr:[], hist:[], obsId:null, toDelete:new Set() }
+};
+let currentObs = [];    // observations de la visite ouverte, triées par ordre
+let allObsItems = [];   // toutes les observations (sert aux reprises de visites précédentes)
+
+// Phrases types par catégorie (un appui = insertion dans la description)
+const PHRASES = {
+  'Parties communes':   ['Propreté satisfaisante','Ménage insuffisant','Ampoule(s) à remplacer','Encombrants à évacuer','Dégradation constatée','Affichage à mettre à jour'],
+  "Cage d'escalier":    ['Propreté satisfaisante','Éclairage défaillant','Peinture écaillée','Rampe à refixer','Marche abîmée','Traces d\'humidité'],
+  'Parking':            ['Éclairage défaillant','Porte de garage en panne','Marquage au sol effacé','Véhicule ventouse','Tache d\'huile au sol','Encombrants à évacuer'],
+  'Toiture':            ['Tuile(s) déplacée(s) ou cassée(s)','Gouttière à nettoyer','Infiltration constatée','Présence de mousse','Descente d\'eaux pluviales abîmée'],
+  'Local poubelles':    ['Local propre','Local sale, nettoyage à prévoir','Encombrants déposés','Bac cassé ou manquant','Tri sélectif non respecté','Porte ne ferme plus'],
+  'Espaces verts':      ['Entretien satisfaisant','Tonte à prévoir','Taille de haie à prévoir','Arbre à élaguer','Arrosage défaillant','Déchets à ramasser'],
+  'Boîtes aux lettres': ['Bon état général','Porte de boîte cassée','Étiquette(s) manquante(s)','Serrure à remplacer','Publicités à évacuer'],
+  'Ascenseur':          ['Fonctionnement normal','En panne','Bruit anormal','Cabine sale','Éclairage cabine HS','Bouton d\'appel défectueux'],
+  'Façade':             ['Bon état général','Fissure constatée','Enduit dégradé','Tag / graffiti','Traces d\'humidité','Élément menaçant de tomber'],
+  'Cave':               ['Bon état général','Humidité constatée','Encombrants dans les circulations','Éclairage défaillant','Porte forcée ou abîmée','Présence de nuisibles'],
+  'Autre':              []
+};
 
 // ════════════════════════════════════════════════════════════
 // MSAL
@@ -509,10 +590,41 @@ async function spDelete(listName, id) {
 }
 
 // DRIVE
+// Réduit une photo de téléphone (souvent 4 à 12 Mo) à 1600 px max avant envoi.
+// En cas d'échec (format non décodable, ex. HEIC hors Safari) on envoie l'original.
+function shrinkImage(file, max = 1600, quality = .82) {
+  return new Promise(resolve => {
+    if (!(file.type || '').startsWith('image/') || file.size < 500 * 1024) return resolve(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const done = r => { URL.revokeObjectURL(url); resolve(r); };
+    img.onload = () => {
+      try {
+        const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(b => done(b && b.size < file.size
+          ? new File([b], (file.name || 'photo').replace(/\.\w+$/, '') + '.jpg', { type:'image/jpeg' })
+          : file), 'image/jpeg', quality);
+      } catch { done(file); }
+    };
+    img.onerror = () => done(file);
+    img.src = url;
+  });
+}
+
+let photoSeq = 0;
 async function uploadPhoto(visiteId, obsId, file) {
+  const f = await shrinkImage(file);
+  // Nom unique : sur téléphone chaque prise de vue s'appelle "image.jpg" et
+  // écraserait la précédente dans le dossier de l'observation.
+  const safe = (f.name || 'photo.jpg').replace(/[^\w.\-]/g, '_');
+  const name = `${Date.now()}_${++photoSeq}_${safe}`;
   const token = await getToken();
-  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/Visite-Photos/${visiteId}/${obsId}/${file.name}:/content`;
-  const r = await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type': file.type||'image/jpeg' }, body: file });
+  const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/root:/Visite-Photos/${visiteId}/${obsId}/${encodeURIComponent(name)}:/content`;
+  const r = await fetch(url, { method:'PUT', headers:{ Authorization:`Bearer ${token}`, 'Content-Type': f.type||'image/jpeg' }, body: f });
   if (!r.ok) throw new Error(`Upload photo: ${r.status}`);
   return r.json();
 }
@@ -585,6 +697,11 @@ function confirmModal(message, title = 'Confirmation') {
     modal.show();
   });
 }
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function val(id) { return document.getElementById(id).value; }
 
 function formatDate(s) {
   if (!s) return '—';
@@ -837,6 +954,17 @@ async function deleteVisite(id) {
 // ════════════════════════════════════════════════════════════
 // VISITE DETAIL
 // ════════════════════════════════════════════════════════════
+function currentVisite() { return allVisites.find(x => x.id === currentVisiteId); }
+
+// Date SharePoint (ISO avec heure) → valeur d'un <input type="date"> en heure locale
+function toInputDate(s) {
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 async function openVisiteDetail(visiteId) {
   currentVisiteId = visiteId;
   showLoading();
@@ -852,34 +980,21 @@ async function openVisiteDetail(visiteId) {
     document.getElementById('detail-title').textContent = v.CoproprieteNom || 'Visite';
 
     const isBrouillon = v.Statut === 'brouillon';
-
-    document.getElementById('detail-meta').innerHTML = `
-      <div class="row g-2">
-        <div class="col-sm-4"><span class="text-muted small">Date</span><br><strong>${formatDate(v.DateVisite)}</strong></div>
-        <div class="col-sm-4"><span class="text-muted small">Rédacteur</span><br><strong>${v.Redacteur||'—'}</strong></div>
-        <div class="col-sm-4"><span class="text-muted small">Statut</span><br>${statutBadge(v.Statut)}</div>
-        ${v.HeureDebut ? `<div class="col-sm-4"><span class="text-muted small">Heure début</span><br><strong>${v.HeureDebut}</strong></div>` : ''}
-        ${v.HeureFin   ? `<div class="col-sm-4"><span class="text-muted small">Heure fin</span><br><strong>${v.HeureFin}</strong></div>` : ''}
-        ${v.PersonnesPresentes ? `<div class="col-12"><span class="text-muted small">Personnes présentes</span><br>${v.PersonnesPresentes}</div>` : ''}
-        ${v.NotesGlobales ? `<div class="col-12"><span class="text-muted small">Notes globales</span><br>${v.NotesGlobales}</div>` : ''}
-      </div>`;
+    document.getElementById('detail-meta').classList.remove('open');
+    renderVisiteMeta(v);
 
     // Saisie section
     document.getElementById('obs-saisie-section').style.display = isBrouillon ? '' : 'none';
     document.getElementById('btn-reopen').classList.toggle('d-none', isBrouillon);
+    document.getElementById('closed-hint').classList.toggle('d-none', isBrouillon);
     document.getElementById('btn-pdf').style.display = '';
 
-    // Reset form
     if (isBrouillon) {
-      selectedCat = null; selectedUrg = 'info';
-      renderCatChips(); renderUrgChips();
-      document.getElementById('obs-description').value = '';
-      document.getElementById('obs-action').value = 'Aucune action';
-      document.getElementById('obs-action-comment').value = '';
-      document.getElementById('obs-photos').value = '';
-      document.getElementById('obs-cat-custom').classList.add('d-none');
-      document.getElementById('cloture-heure-fin').value = '';
-      document.getElementById('cloture-notes').value = '';
+      resetForm('add');
+      // Pré-remplir avec les valeurs déjà saisies : une visite réouverte puis
+      // reclôturée ne doit pas perdre son heure de fin ni ses notes globales.
+      document.getElementById('cloture-heure-fin').value = v.HeureFin || '';
+      document.getElementById('cloture-notes').value = v.NotesGlobales || '';
     }
 
     await loadObservationList(visiteId);
@@ -888,32 +1003,282 @@ async function openVisiteDetail(visiteId) {
   finally { showLoading(false); }
 }
 
-// ── Cat chips ────────────────────────────────────────────────
-function renderCatChips() {
-  // Catégories comme "Cage d'escalier" contiennent une apostrophe : il faut
-  // l'échapper dans l'attribut onclick, sinon le handler inline est cassé
-  // et le clic sur ce chip ne sélectionne rien (silencieusement).
-  document.getElementById('cat-chips').innerHTML = CATEGORIES.map(c => `
-    <span class="chip ${selectedCat === c ? 'selected-cat' : ''}" onclick="selectCat('${c.replace(/'/g, "\\'")}')">${c}</span>`).join('');
+// En-tête compact : une seule ligne sur téléphone, détail dépliable
+function renderVisiteMeta(v) {
+  const isBrouillon = v.Statut === 'brouillon';
+  const heures = v.HeureDebut ? v.HeureDebut + (v.HeureFin ? '–' + v.HeureFin : '') : '';
+  const line = [formatDate(v.DateVisite), heures, v.Redacteur].filter(Boolean).map(esc).join(' · ');
+  const more = [
+    v.PersonnesPresentes ? `<div><span class="text-muted">Personnes présentes :</span> ${esc(v.PersonnesPresentes)}</div>` : '',
+    v.NotesGlobales ? `<div><span class="text-muted">Notes globales :</span> ${esc(v.NotesGlobales).replace(/\n/g,'<br>')}</div>` : ''
+  ].join('');
+  document.getElementById('detail-meta').innerHTML = `
+    <div class="meta-compact">
+      <div class="meta-line" onclick="toggleMeta()">${line}</div>
+      ${statutBadge(v.Statut)}
+      ${isBrouillon ? `<button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="openVisiteEdit()" aria-label="Modifier les informations de la visite"><i class="bi bi-pencil"></i></button>` : ''}
+      ${more ? `<button class="btn btn-sm btn-link p-0 px-1 meta-toggle" onclick="toggleMeta()" aria-label="Afficher le détail"><i class="bi bi-chevron-down"></i></button>` : ''}
+    </div>
+    ${more ? `<div class="meta-more px-3 pb-2 small">${more}</div>` : ''}`;
 }
 
-function selectCat(c) {
-  selectedCat = c;
-  renderCatChips();
-  document.getElementById('obs-cat-custom').classList.toggle('d-none', c !== 'Autre');
+function toggleMeta() { document.getElementById('detail-meta').classList.toggle('open'); }
+
+// ── Modifier les infos de la visite ──────────────────────────
+function openVisiteEdit() {
+  const v = currentVisite();
+  if (!v) return;
+  document.getElementById('ve-date').value        = toInputDate(v.DateVisite);
+  document.getElementById('ve-heure-debut').value = v.HeureDebut || '';
+  document.getElementById('ve-heure-fin').value   = v.HeureFin || '';
+  document.getElementById('ve-redacteur').value   = v.Redacteur || '';
+  document.getElementById('ve-presentes').value   = v.PersonnesPresentes || '';
+  document.getElementById('ve-notes').value       = v.NotesGlobales || '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('visiteEditModal')).show();
 }
 
-// ── Urgence chips ────────────────────────────────────────────
-function renderUrgChips() {
-  document.getElementById('urg-chips').innerHTML = URGENCES.map(u => `
-    <span class="chip ${selectedUrg === u.value ? 'selected-urg-'+u.value : ''}"
-          onclick="selectUrg('${u.value}')"
-          style="${selectedUrg !== u.value ? '' : 'font-weight:700;'}">
+async function saveVisiteEdit() {
+  const v = currentVisite();
+  if (!v) return;
+  const date  = val('ve-date');
+  const redac = val('ve-redacteur').trim();
+  if (!date || !redac) { toast('La date et le rédacteur sont requis','warning'); return; }
+
+  const fields = {
+    HeureDebut:         val('ve-heure-debut'),
+    HeureFin:           val('ve-heure-fin'),
+    Redacteur:          redac,
+    PersonnesPresentes: val('ve-presentes').trim(),
+    NotesGlobales:      val('ve-notes').trim()
+  };
+  // La date n'est renvoyée que si elle a réellement changé
+  if (date !== toInputDate(v.DateVisite)) {
+    fields.DateVisite = date;
+    fields.Title = `${v.CoproprieteNom || ''} - ${date}`;
+  }
+
+  showLoading();
+  try {
+    await spUpdate('VS_Visites', v.id, fields);
+    Object.assign(v, fields);
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('visiteEditModal')).hide();
+    renderVisiteMeta(v);
+    document.getElementById('cloture-heure-fin').value = v.HeureFin || '';
+    document.getElementById('cloture-notes').value = v.NotesGlobales || '';
+    toast('Informations de la visite mises à jour');
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ════════════════════════════════════════════════════════════
+// FORMULAIRE D'OBSERVATION (partagé : p = 'add' ou 'edit')
+// ════════════════════════════════════════════════════════════
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function formFieldsHTML(p) {
+  return `
+    <label class="form-label fw-semibold small">Catégorie</label>
+    <div id="${p}-cat-chips" class="d-flex flex-wrap gap-2 mb-2"></div>
+    <input id="${p}-cat-custom" class="form-control mb-2 d-none" placeholder="Autre — précisez…" aria-label="Catégorie personnalisée">
+
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-1">
+      <label class="form-label fw-semibold small mb-0" for="${p}-description">Description</label>
+      <button type="button" id="${p}-mic" class="btn btn-sm btn-outline-secondary mic-btn ${SR ? '' : 'd-none'}" onclick="toggleDictation('${p}')"><i class="bi bi-mic-fill me-1"></i><span>Dicter</span></button>
+    </div>
+    <div id="${p}-phrases" class="d-flex flex-wrap gap-2 mb-2"></div>
+    <textarea id="${p}-description" class="form-control mb-3" rows="3" placeholder="Décrivez l'observation…"></textarea>
+
+    <label class="form-label fw-semibold small">Urgence</label>
+    <div class="d-flex flex-wrap gap-2 mb-3" id="${p}-urg-chips"></div>
+
+    <label class="form-label fw-semibold small" for="${p}-action">Action</label>
+    <select id="${p}-action" class="form-select mb-3">${ACTIONS.map(a => `<option>${a}</option>`).join('')}</select>
+
+    <label class="form-label fw-semibold small" for="${p}-action-comment">Commentaire action</label>
+    <textarea id="${p}-action-comment" class="form-control mb-3" rows="2" placeholder="(optionnel)"></textarea>
+
+    <label class="form-label fw-semibold small">Photos</label>
+    ${p === 'edit' ? `<div id="edit-existing" class="d-flex flex-wrap gap-3 mb-2"></div>` : ''}
+    <div class="d-flex gap-2 mb-2">
+      <label class="btn btn-outline-primary flex-fill mb-0"><i class="bi bi-camera me-1"></i>Appareil photo<input type="file" accept="image/*" capture="environment" hidden onchange="addPending('${p}', this)"></label>
+      <label class="btn btn-outline-primary flex-fill mb-0"><i class="bi bi-images me-1"></i>Galerie<input type="file" accept="image/*" multiple hidden onchange="addPending('${p}', this)"></label>
+    </div>
+    <div id="${p}-pending" class="d-flex flex-wrap gap-3 mb-3"></div>`;
+}
+
+function initForms() {
+  document.getElementById('add-form-fields').innerHTML  = formFieldsHTML('add');
+  document.getElementById('edit-form-fields').innerHTML = formFieldsHTML('edit');
+  document.getElementById('obsEditModal').addEventListener('hidden.bs.modal', stopDictation);
+}
+
+function resetForm(p) {
+  stopDictation();
+  const f = form[p];
+  f.cat = null; f.urg = 'info'; f.files = [];
+  document.getElementById(`${p}-description`).value = '';
+  document.getElementById(`${p}-action`).value = 'Aucune action';
+  document.getElementById(`${p}-action-comment`).value = '';
+  document.getElementById(`${p}-cat-custom`).value = '';
+  document.getElementById(`${p}-cat-custom`).classList.add('d-none');
+  renderCatChips(p); renderUrgChips(p); renderPhrases(p); renderPending(p);
+}
+
+// ── Catégorie ────────────────────────────────────────────────
+// On passe l'index et non le libellé dans le onclick : "Cage d'escalier"
+// contient une apostrophe qui casserait le handler inline.
+function renderCatChips(p) {
+  document.getElementById(`${p}-cat-chips`).innerHTML = CATEGORIES.map((c, i) => `
+    <span class="chip ${form[p].cat === c ? 'selected-cat' : ''}" onclick="selectCat('${p}',${i})">${esc(c)}</span>`).join('');
+}
+
+function selectCat(p, i) {
+  form[p].cat = CATEGORIES[i];
+  renderCatChips(p);
+  document.getElementById(`${p}-cat-custom`).classList.toggle('d-none', form[p].cat !== 'Autre');
+  renderPhrases(p);
+}
+
+// ── Urgence ──────────────────────────────────────────────────
+function renderUrgChips(p) {
+  document.getElementById(`${p}-urg-chips`).innerHTML = URGENCES.map(u => `
+    <span class="chip ${form[p].urg === u.value ? 'selected-urg-'+u.value : ''}"
+          onclick="selectUrg('${p}','${u.value}')"
+          style="${form[p].urg !== u.value ? '' : 'font-weight:700;'}">
       ${u.emoji} ${u.label}
     </span>`).join('');
 }
 
-function selectUrg(v) { selectedUrg = v; renderUrgChips(); }
+function selectUrg(p, v) { form[p].urg = v; renderUrgChips(p); }
+
+// ── Phrases types + reprise des visites précédentes ──────────
+// Observations déjà notées dans cette catégorie lors des visites précédentes
+// de la même copropriété (les plus récentes d'abord, sans doublon).
+function historyFor(cat) {
+  const v = currentVisite();
+  if (!v || !cat) return [];
+  const prev = new Map(allVisites
+    .filter(x => x.id !== v.id && String(x.CoproprieteId) === String(v.CoproprieteId))
+    .map(x => [String(x.id), x.DateVisite || '']));
+  const seen = new Set(), out = [];
+  allObsItems
+    .filter(o => prev.has(String(o.VisiteId)) && o.Categorie === cat && (o.Description || '').trim())
+    .sort((a, b) => prev.get(String(b.VisiteId)).localeCompare(prev.get(String(a.VisiteId))))
+    .forEach(o => {
+      const k = o.Description.trim().toLowerCase();
+      if (!seen.has(k)) { seen.add(k); out.push(o); }
+    });
+  return out.slice(0, 4);
+}
+
+function renderPhrases(p) {
+  const f = form[p];
+  const box = document.getElementById(`${p}-phrases`);
+  f.phr  = f.cat ? (PHRASES[f.cat] || []) : [];
+  f.hist = historyFor(f.cat);
+  const short = s => s.length > 48 ? s.slice(0, 46) + '…' : s;
+  box.innerHTML =
+    f.hist.map((o, i) => `<span class="phrase-chip hist" onclick="applyHistory('${p}',${i})" title="Déjà noté lors d'une visite précédente"><i class="bi bi-clock-history me-1"></i>${esc(short(o.Description.trim()))}</span>`).join('') +
+    f.phr.map((s, i) => `<span class="phrase-chip" onclick="insertPhrase('${p}',${i})">${esc(s)}</span>`).join('');
+}
+
+// Ajoute la phrase type à la suite de la description
+function insertPhrase(p, i) {
+  const ta = document.getElementById(`${p}-description`);
+  const s = form[p].phr[i];
+  const cur = ta.value.trim();
+  ta.value = cur ? cur.replace(/[.\s]*$/, '') + '. ' + s : s;
+}
+
+// Reprend une observation d'une visite précédente (texte, urgence, action)
+function applyHistory(p, i) {
+  const o = form[p].hist[i];
+  if (!o) return;
+  document.getElementById(`${p}-description`).value = o.Description.trim();
+  form[p].urg = URGENCES.some(u => u.value === o.Urgence) ? o.Urgence : 'info';
+  renderUrgChips(p);
+  document.getElementById(`${p}-action`).value = ACTIONS.includes(o.Action) ? o.Action : 'Aucune action';
+  document.getElementById(`${p}-action-comment`).value = o.ActionCommentaire || '';
+}
+
+// ── Dictée vocale (si le navigateur / webview la propose) ────
+let recog = null;
+function stopDictation() { if (recog) { try { recog.stop(); } catch {} } }
+
+function toggleDictation(p) {
+  if (recog) { stopDictation(); return; }
+  if (!SR) return;
+  const ta  = document.getElementById(`${p}-description`);
+  const btn = document.getElementById(`${p}-mic`);
+  const base = ta.value.trim() ? ta.value.replace(/\s*$/, '') + ' ' : '';
+  const r = new SR();
+  r.lang = 'fr-FR'; r.interimResults = true; r.continuous = true;
+  r.onresult = e => {
+    let txt = '';
+    for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+    ta.value = base + txt;
+  };
+  r.onerror = e => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    toast(e.error === 'not-allowed' || e.error === 'service-not-allowed'
+      ? 'Micro non autorisé ici : utilisez la touche micro du clavier'
+      : 'Dictée interrompue (' + e.error + ')', 'warning');
+  };
+  r.onend = () => {
+    recog = null;
+    btn.classList.remove('recording');
+    btn.querySelector('span').textContent = 'Dicter';
+  };
+  try {
+    r.start();
+    recog = r;
+    btn.classList.add('recording');
+    btn.querySelector('span').textContent = 'Arrêter';
+  } catch(e) { toast('Dictée indisponible : utilisez la touche micro du clavier','warning'); }
+}
+
+// ── Photos en attente d'envoi ────────────────────────────────
+function addPending(p, input) {
+  form[p].files.push(...Array.from(input.files));
+  input.value = '';
+  renderPending(p);
+}
+
+function removePending(p, i) { form[p].files.splice(i, 1); renderPending(p); }
+
+function renderPending(p) {
+  document.getElementById(`${p}-pending`).innerHTML = form[p].files.map((f, i) => `
+    <span class="photo-thumb">
+      <img src="${URL.createObjectURL(f)}" alt="Photo à envoyer">
+      <button type="button" class="del" onclick="removePending('${p}',${i})" aria-label="Retirer cette photo">&times;</button>
+    </span>`).join('');
+}
+
+// Lit et valide le formulaire ; retourne null si incomplet
+function readForm(p) {
+  const f = form[p];
+  if (!f.cat) { toast('Sélectionnez une catégorie','warning'); return null; }
+  const desc = val(`${p}-description`).trim();
+  if (!desc) { toast('La description est requise','warning'); return null; }
+  return {
+    Categorie:         f.cat,
+    CategorieCustom:   f.cat === 'Autre' ? val(`${p}-cat-custom`).trim() : '',
+    Description:       desc,
+    Urgence:           f.urg,
+    Action:            val(`${p}-action`),
+    ActionCommentaire: val(`${p}-action-comment`).trim()
+  };
+}
+
+// Envoie les photos ; retourne le nombre d'échecs
+async function uploadFiles(obsId, files) {
+  let failed = 0;
+  for (const file of files) {
+    try { await uploadPhoto(currentVisiteId, obsId, file); }
+    catch(e) { failed++; console.warn('Photo upload:', e); }
+  }
+  return failed;
+}
 
 // ════════════════════════════════════════════════════════════
 // OBSERVATIONS
@@ -926,84 +1291,181 @@ async function getObservationsForVisite(visiteId) {
   return items.filter(i => String(i.fields.VisiteId) === String(visiteId));
 }
 
+const byOrdre = (a, b) => ((Number(a.Ordre)||0) - (Number(b.Ordre)||0)) || (Number(a.id) - Number(b.id));
+
 async function loadObservationList(visiteId) {
   try {
-    const items = await getObservationsForVisite(visiteId);
-    const obs = items.map(i => ({ id: i.id, ...i.fields })).sort((a,b) => (a.Ordre||0)-(b.Ordre||0));
-    const v = allVisites.find(x => x.id === visiteId);
-    const isBrouillon = v?.Statut === 'brouillon';
+    const items = await spList('VS_Observations');
+    allObsItems = items.map(i => ({ id: i.id, ...i.fields }));
+    currentObs = allObsItems.filter(o => String(o.VisiteId) === String(visiteId)).sort(byOrdre);
+    renderObsCards();
+    renderPhrases('add');
 
-    const container = document.getElementById('obs-list');
-    if (!obs.length) { container.innerHTML = '<div class="text-muted small">Aucune observation encore.</div>'; return; }
+    // Photos chargées en parallèle, après l'affichage des textes
+    await Promise.all(currentObs.map(async o => {
+      o._photos = await listPhotos(visiteId, o.id);
+      if (currentVisiteId !== visiteId) return;
+      const strip = document.getElementById(`obs-photos-${o.id}`);
+      if (strip) strip.innerHTML = photoStripHTML(o);
+    }));
+  } catch(e) { console.error('loadObservationList', e); toast('Erreur de chargement des observations','danger'); }
+}
 
-    container.innerHTML = '';
-    for (const o of obs) {
-      const photos = await listPhotos(visiteId, o.id);
-      const catLabel = o.Categorie === 'Autre' && o.CategorieCustom ? o.CategorieCustom : (o.Categorie||'');
-      const card = document.createElement('div');
-      card.className = 'card mb-2 p-3';
-      card.innerHTML = `
-        <div class="d-flex justify-content-between align-items-start mb-1">
-          <span class="badge" style="background:var(--blue)">${catLabel}</span>
-          <div class="d-flex gap-1 align-items-center">
-            ${urgBadge(o.Urgence)}
-            ${isBrouillon ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteObs('${o.id}')"><i class="bi bi-trash"></i></button>` : ''}
-          </div>
+function photoStripHTML(o) {
+  const photos = o._photos || [];
+  if (!photos.length) return '';
+  return `<div class="d-flex flex-wrap gap-2 mt-2">${photos.map(ph => {
+    const url = ph['@microsoft.graph.downloadUrl'] || '';
+    return `<img src="${esc(url)}" alt="Photo de l'observation" style="height:80px;border-radius:6px;cursor:pointer;object-fit:cover;" onclick="openLightbox(this.src)" onerror="this.style.display='none'">`;
+  }).join('')}</div>`;
+}
+
+function renderObsCards() {
+  const isBrouillon = currentVisite()?.Statut === 'brouillon';
+  const container = document.getElementById('obs-list');
+  if (!currentObs.length) { container.innerHTML = '<div class="text-muted small">Aucune observation encore.</div>'; return; }
+
+  const last = currentObs.length - 1;
+  container.innerHTML = currentObs.map((o, i) => {
+    const catLabel = o.Categorie === 'Autre' && o.CategorieCustom ? o.CategorieCustom : (o.Categorie || '');
+    const actions = isBrouillon ? `
+        <button class="btn btn-sm btn-outline-secondary py-0" onclick="moveObs('${o.id}',-1)" ${i === 0 ? 'disabled' : ''} aria-label="Monter"><i class="bi bi-arrow-up"></i></button>
+        <button class="btn btn-sm btn-outline-secondary py-0" onclick="moveObs('${o.id}',1)" ${i === last ? 'disabled' : ''} aria-label="Descendre"><i class="bi bi-arrow-down"></i></button>
+        <button class="btn btn-sm btn-outline-primary py-0" onclick="openObsEdit('${o.id}')" aria-label="Modifier"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteObs('${o.id}')" aria-label="Supprimer"><i class="bi bi-trash"></i></button>` : '';
+    return `
+      <div class="card mb-2 p-3">
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+          <div><span class="text-muted small me-1">${i + 1}.</span><span class="badge" style="background:var(--blue)">${esc(catLabel)}</span> ${urgBadge(o.Urgence)}</div>
+          <div class="d-flex gap-1 align-items-center flex-shrink-0 obs-actions">${actions}</div>
         </div>
-        <p class="mb-1">${(o.Description||'').replace(/\n/g,'<br>')}</p>
-        ${o.Action && o.Action !== 'Aucune action' ? `<div class="text-muted small"><i class="bi bi-lightning me-1"></i>${o.Action}${o.ActionCommentaire ? ' — '+o.ActionCommentaire : ''}</div>` : ''}
-        ${photos.length ? `<div class="d-flex flex-wrap gap-2 mt-2">${photos.map(p=>`<img src="${p['@microsoft.graph.downloadUrl']||''}" alt="photo" style="height:80px;border-radius:6px;cursor:pointer;object-fit:cover;" onclick="openLightbox('${p['@microsoft.graph.downloadUrl']||p.webUrl}')" onerror="this.style.display='none'">`).join('')}</div>` : ''}`;
-      container.appendChild(card);
-    }
-  } catch(e) { console.error('loadObservationList', e); }
+        <p class="mb-1">${esc(o.Description).replace(/\n/g,'<br>')}</p>
+        ${o.Action && o.Action !== 'Aucune action' ? `<div class="text-muted small"><i class="bi bi-lightning me-1"></i>${esc(o.Action)}${o.ActionCommentaire ? ' — ' + esc(o.ActionCommentaire) : ''}</div>` : ''}
+        <div id="obs-photos-${o.id}">${photoStripHTML(o)}</div>
+      </div>`;
+  }).join('');
 }
 
 async function saveObservation() {
-  if (!selectedCat) { toast('Sélectionnez une catégorie','warning'); return; }
-  const desc = document.getElementById('obs-description').value.trim();
-  if (!desc) { toast('La description est requise','warning'); return; }
-
-  const catCustom = selectedCat === 'Autre' ? document.getElementById('obs-cat-custom').value.trim() : '';
-
-  // Get current max order
-  const existing = await getObservationsForVisite(currentVisiteId);
-  const nextOrdre = existing.length + 1;
-
-  const fields = {
-    Title:            `Obs ${nextOrdre}`,
-    VisiteId:         currentVisiteId,
-    Ordre:            nextOrdre,
-    Categorie:        selectedCat,
-    CategorieCustom:  catCustom,
-    Description:      desc,
-    Urgence:          selectedUrg,
-    Action:           document.getElementById('obs-action').value,
-    ActionCommentaire:document.getElementById('obs-action-comment').value.trim()
-  };
+  const fields = readForm('add');
+  if (!fields) return;
+  stopDictation();
 
   showLoading();
   try {
-    const created = await spCreate('VS_Observations', fields);
-    const obsId = created.id;
+    // Ordre = dernier ordre + 1 (et non le nombre d'observations, qui crée
+    // des doublons d'ordre après une suppression)
+    const existing = await getObservationsForVisite(currentVisiteId);
+    const nextOrdre = existing.reduce((m, i) => Math.max(m, Number(i.fields.Ordre) || 0), 0) + 1;
 
-    // Upload photos
-    const photoInput = document.getElementById('obs-photos');
-    for (const file of Array.from(photoInput.files)) {
-      try { await uploadPhoto(currentVisiteId, obsId, file); } catch(e) { console.warn('Photo upload:', e); }
-    }
+    const created = await spCreate('VS_Observations', {
+      Title: `Obs ${nextOrdre}`, VisiteId: currentVisiteId, Ordre: nextOrdre, ...fields
+    });
+    const failed = await uploadFiles(created.id, form.add.files);
 
-    // Reset form
-    selectedCat = null; selectedUrg = 'info';
-    renderCatChips(); renderUrgChips();
-    document.getElementById('obs-description').value = '';
-    document.getElementById('obs-action').value = 'Aucune action';
-    document.getElementById('obs-action-comment').value = '';
-    document.getElementById('obs-photos').value = '';
-    document.getElementById('obs-cat-custom').classList.add('d-none');
-
-    toast('Observation enregistrée');
+    resetForm('add');
+    toast(failed ? `Observation enregistrée, mais ${failed} photo(s) non envoyée(s)` : 'Observation enregistrée', failed ? 'warning' : 'success');
     await loadObservationList(currentVisiteId);
   } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ── Modifier une observation enregistrée ─────────────────────
+async function openObsEdit(obsId) {
+  const o = currentObs.find(x => x.id === obsId);
+  if (!o) return;
+  resetForm('edit');
+  const f = form.edit;
+  f.obsId = obsId;
+  f.toDelete = new Set();
+
+  // Catégorie hors liste (anciennes données) → "Autre" + libellé d'origine
+  const known = CATEGORIES.includes(o.Categorie);
+  f.cat = known ? o.Categorie : (o.Categorie ? 'Autre' : null);
+  f.urg = URGENCES.some(u => u.value === o.Urgence) ? o.Urgence : 'info';
+  const custom = document.getElementById('edit-cat-custom');
+  custom.value = known ? (o.CategorieCustom || '') : (o.Categorie || '');
+  custom.classList.toggle('d-none', f.cat !== 'Autre');
+  document.getElementById('edit-description').value = o.Description || '';
+  document.getElementById('edit-action').value = ACTIONS.includes(o.Action) ? o.Action : 'Aucune action';
+  document.getElementById('edit-action-comment').value = o.ActionCommentaire || '';
+  renderCatChips('edit'); renderUrgChips('edit'); renderPhrases('edit');
+
+  if (!o._photos) o._photos = await listPhotos(currentVisiteId, o.id);
+  renderExistingPhotos();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('obsEditModal')).show();
+}
+
+// Photos déjà enregistrées : la croix marque la photo "à supprimer",
+// la suppression n'est faite qu'à l'enregistrement (annulable d'ici là).
+function renderExistingPhotos() {
+  const f = form.edit;
+  const photos = currentObs.find(x => x.id === f.obsId)?._photos || [];
+  document.getElementById('edit-existing').innerHTML = photos.length
+    ? photos.map(ph => {
+        const del = f.toDelete.has(ph.id);
+        return `
+        <span class="photo-thumb ${del ? 'to-delete' : ''}">
+          <img src="${esc(ph['@microsoft.graph.downloadUrl'] || '')}" alt="Photo enregistrée" onclick="openLightbox(this.src)">
+          <button type="button" class="del" onclick="togglePhotoDelete('${ph.id}')" aria-label="${del ? 'Conserver cette photo' : 'Supprimer cette photo'}">${del ? '<i class="bi bi-arrow-counterclockwise"></i>' : '&times;'}</button>
+        </span>`;
+      }).join('')
+    : '<span class="text-muted small">Aucune photo enregistrée.</span>';
+}
+
+function togglePhotoDelete(photoId) {
+  const s = form.edit.toDelete;
+  if (s.has(photoId)) s.delete(photoId); else s.add(photoId);
+  renderExistingPhotos();
+}
+
+async function saveObsEdit() {
+  const fields = readForm('edit');
+  if (!fields) return;
+  stopDictation();
+  const f = form.edit;
+
+  showLoading();
+  try {
+    await spUpdate('VS_Observations', f.obsId, fields);
+
+    let failed = 0;
+    for (const photoId of f.toDelete) {
+      try { await graph('DELETE', `/sites/${siteId}/drive/items/${photoId}`); }
+      catch(e) { failed++; console.warn('Suppression photo:', e); }
+    }
+    failed += await uploadFiles(f.obsId, f.files);
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('obsEditModal')).hide();
+    toast(failed ? `Observation modifiée, mais ${failed} photo(s) en échec` : 'Observation modifiée', failed ? 'warning' : 'success');
+    await loadObservationList(currentVisiteId);
+  } catch(e) { toast('Erreur: '+e.message,'danger'); }
+  finally { showLoading(false); }
+}
+
+// ── Changer l'ordre ──────────────────────────────────────────
+async function moveObs(obsId, dir) {
+  const i = currentObs.findIndex(x => x.id === obsId);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= currentObs.length) return;
+  const arr = [...currentObs];
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+
+  showLoading();
+  try {
+    // Renumérotation 1..n : seules les lignes dont l'ordre change sont écrites
+    for (let k = 0; k < arr.length; k++) {
+      if (Number(arr[k].Ordre) !== k + 1) {
+        await spUpdate('VS_Observations', arr[k].id, { Ordre: k + 1 });
+        arr[k].Ordre = k + 1;
+      }
+    }
+    currentObs = arr;
+    renderObsCards();
+  } catch(e) {
+    toast('Erreur: '+e.message,'danger');
+    await loadObservationList(currentVisiteId);
+  }
   finally { showLoading(false); }
 }
 
@@ -1014,6 +1476,8 @@ async function deleteObs(obsId) {
   catch(e) { toast('Erreur: '+e.message,'danger'); }
   finally { showLoading(false); }
 }
+
+initForms();
 
 // ════════════════════════════════════════════════════════════
 // CLÔTURER / RÉOUVRIR
